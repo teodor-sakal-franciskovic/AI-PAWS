@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  ai-paws:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/backend
+    environment:
+      - PYTHONPATH=/backend
+    env_file:
+      - .env
+    depends_on:
+      - ai-paws-db
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+
+  ai-paws-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ai-paws
+      POSTGRES_PASSWORD: pawsword123
+      POSTGRES_DB: ai-paws
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

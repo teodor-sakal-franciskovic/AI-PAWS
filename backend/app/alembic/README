@@ -1,0 +1,18 @@
+# Alembic
+
+Bash into the container (```docker exec -it <container-name> /bin/bash```) and position yourself to the app folder. From here, you can run the following commands described in the next section.
+
+## Commands
+
+### Autogenerate migrations
+Import the models you want to add in the backend/app/alembic/env.py file before running the autogenerate command.
+```alembic revision --autogenerate -m "Description"```
+
+### Apply migrations
+```alembic upgrade head```
+
+### Revert migrations
+```alembic downgrade -X``` (X - number of migrations you want to go backwards)
+
+### Check migration history
+```alembic history```
