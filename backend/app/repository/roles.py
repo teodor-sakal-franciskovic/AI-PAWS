@@ -1,0 +1,13 @@
+from sqlalchemy.orm import Session
+
+from ..models.role import Role
+
+from ..schemas.users import UserCreate
+
+
+def retrieve_all(db: Session):
+    return db.query(Role).all()
+
+
+def retrieve_by_id(db: Session, user: UserCreate):
+    return db.query(Role).filter(Role.id == user.role_id).first()
