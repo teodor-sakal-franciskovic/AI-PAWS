@@ -1,11 +1,8 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
 from alembic import context
-
 from app.database.config import DATABASE_URL
+from sqlalchemy import engine_from_config, pool
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -19,20 +16,31 @@ if config.config_file_name is not None:
 # add your model's MetaData object here
 # for 'autogenerate' support
 # from myapp import mymodel
-from app.models.base import BaseSchema  # noqa
-
-from app.models.user import User  # noqa
+from app.main import AcademicWritingSchema  # noqa
+from app.models.chapter import Chapter  # noqa
+from app.models.chapter_grading_aspect import ChapterGradingAspect  # noqa
+from app.models.feedback import Feedback  # noqa
+from app.models.fulfillment import Fulfillment  # noqa
+from app.models.grading_aspect import GradingAspect  # noqa
+from app.models.group import Group  # noqa
+from app.models.historical_profile import HistoricalProfile  # noqa
+from app.models.prompt_template import PromptTemplate  # noqa
 from app.models.role import Role  # noqa
+from app.models.rule import Rule  # noqa
+from app.models.rule_feedback_submission import RuleFeedbackSubmission  # noqa
+from app.models.submission import Submission  # noqa
+from app.models.submission_mode import SubmissionMode  # noqa
+from app.models.user import User  # noqa
 
 # target_metadata = mymodel.Base.metadata
-target_metadata = BaseSchema.metadata
+target_metadata = [AcademicWritingSchema.metadata, ]
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
-LIST_OF_SCHEMAS_TO_BE_SCANNED = ["base_schema"]
+LIST_OF_SCHEMAS_TO_BE_SCANNED = ["public", "academic_writing_schema"]
 
 
 def include_name(name, type_, parent_names):
@@ -88,6 +96,7 @@ def run_migrations_online():
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
+            include_schemas=True,
             include_name=include_name,
         )
 
