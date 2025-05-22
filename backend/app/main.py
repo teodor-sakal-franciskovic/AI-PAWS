@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import auth, users, roles
+from .models.base import AcademicWritingSchema
+from .routers import auth, roles, users
 
 description = """
 
