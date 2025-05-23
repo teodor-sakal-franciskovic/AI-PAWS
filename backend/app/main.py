@@ -26,7 +26,7 @@ app = FastAPI(
     summary="AI-Powered Academic Writing Support",
     version="0.0.1",  # TODO: Correlate with semantic versioning/pushing to dockerhub
     contact={
-        "name": "Teodor Sakal Francišković",
+        "name": "Teodor Sakal Francišković bla bla bla",
         "email": "teodor.sakal_franciskovic@uns.ac.rs",
     },
     license_info={
