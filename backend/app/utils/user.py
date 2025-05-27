@@ -1,7 +1,7 @@
 from ..models.user import User
 from ..models.role import Role
 
-from ..schemas.users import UserResponse
+from ..schemas.user import UserResponse
 
 
 def create_user_response(user: User, role: Role):

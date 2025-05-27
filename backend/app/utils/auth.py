@@ -7,7 +7,7 @@ from ..models.user import User
 
 from ..settings import settings
 
-from ..repository.users import retrieve_by_email
+from ..repository.user import retrieve_by_email
 
 SECRET_KEY = settings.secret_key
 ALGORITHM = settings.algorithm

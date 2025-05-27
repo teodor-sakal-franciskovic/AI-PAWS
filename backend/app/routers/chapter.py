@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.orm import Session
 
 from ..dependencies.auth import get_current_active_user
-from ..dependencies.chapters import get_extract_pdf_to_markdown
+from ..dependencies.chapter import get_extract_pdf_to_markdown
 from ..dependencies.db import get_db
 from ..models.user import User
 from ..schemas.response import GenericResponse

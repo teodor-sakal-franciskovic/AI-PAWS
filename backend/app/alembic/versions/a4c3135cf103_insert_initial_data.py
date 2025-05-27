@@ -18,7 +18,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("INSERT INTO academic_writing_schema.role (id, name) VALUES (1, 'Student'), (2, 'Asistent')")
+    op.execute("INSERT INTO academic_writing_schema.role (id, name) VALUES (1, 'Student'), (2, 'TA')")
     op.execute("INSERT INTO academic_writing_schema.submission_mode (id, name, description) " \
     "VALUES (1, 'Interaktivni mod', 'Mod u kojem studenti dobijaju povratne informacije o poglavlju koje su priložili.'),"
     " (2, 'Evalucioni mod', 'Mod u kojem studenti dobijaju poene (i razloge zašto su ti poeni dodeljeni) za poglavlje koje su priložili.')")

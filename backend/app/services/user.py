@@ -3,13 +3,13 @@ from sqlalchemy.orm import Session
 
 from ..models.role import Role
 from ..models.user import User
-from ..repository.roles import retrieve_by_id
-from ..repository.users import retrieve_by_email_from_user
-from ..schemas.users import UpdatedUserInfo, UpdatedUserPassword, UserCreate
+from ..repository.role import retrieve_by_id
+from ..repository.user import retrieve_by_email_from_user
+from ..schemas.user import UpdatedUserInfo, UpdatedUserPassword, UserCreate
 from ..utils.auth import get_password_hash
 from ..utils.db import add, commit_and_refresh
 from ..utils.logger import logger
-from ..utils.users import create_user_response
+from ..utils.user import create_user_response
 
 
 def create_user(user: UserCreate, db: Session):

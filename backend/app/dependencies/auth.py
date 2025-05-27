@@ -1,16 +1,15 @@
+from typing import Annotated, Optional
+
 import jwt
-from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from jwt.exceptions import InvalidTokenError
 from sqlalchemy.orm import Session
 
-from jwt.exceptions import InvalidTokenError
-
-from ..models.user import User
 from ..models.role import Role
-
-from ..settings import settings
+from ..models.user import User
 from ..schemas.auth import TokenData
+from ..settings import settings
 from .db import get_db
 
 SECRET_KEY = settings.secret_key
@@ -53,3 +52,11 @@ def get_current_active_user_role(
 ):
     role: Role = db.query(Role).filter(Role.id == current_user.role_id).first()
     return role
+
+
+def require_role(required: Optional[str] = None):
+    def _require_role(role: Annotated[Role, Depends(get_current_active_user_role)]) -> Role:
+        if required is not None and role.name != required:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorised access.")
+        return role
+    return _require_role

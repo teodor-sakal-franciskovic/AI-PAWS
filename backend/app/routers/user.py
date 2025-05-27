@@ -7,14 +7,14 @@ from sqlalchemy.orm import Session
 from ..dependencies.auth import (get_current_active_user,
                                  get_current_active_user_role)
 from ..dependencies.db import get_db
-from ..dependencies.users import (get_create_user, get_deactivate_user,
+from ..dependencies.user import (get_create_user, get_deactivate_user,
                                   get_retrieve_logged_in_user,
                                   get_update_user_info,
                                   get_update_user_password)
 from ..models.role import Role
 from ..models.user import User
 from ..schemas.response import GenericResponse
-from ..schemas.users import (UpdatedUserInfo, UpdatedUserPassword, UserCreate,
+from ..schemas.user import (UpdatedUserInfo, UpdatedUserPassword, UserCreate,
                              UserResponse)
 
 router = APIRouter(

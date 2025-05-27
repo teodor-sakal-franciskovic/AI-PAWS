@@ -6,10 +6,10 @@ from typing import List
 from sqlalchemy.orm import Session
 
 from ..schemas.response import GenericResponse
-from ..schemas.roles import RoleResponse
+from ..schemas.role import RoleResponse
 
 from ..dependencies.db import get_db
-from ..dependencies.roles import get_retrieve_roles
+from ..dependencies.role import get_retrieve_roles
 
 
 router = APIRouter(

@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 
 from ..models.role import Role
 
-from ..schemas.users import UserCreate
+from ..schemas.user import UserCreate
 
 
 def retrieve_all(db: Session):

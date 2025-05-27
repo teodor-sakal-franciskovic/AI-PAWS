@@ -1,4 +1,4 @@
-from ..services.users import (
+from ..services.user import (
     create_user,
     retrieve_logged_in_user,
     update_user_info,
