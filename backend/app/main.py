@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .models.base import AcademicWritingSchema
-from .routers import auth, roles, users
+from .routers import auth, chapters, roles, users
 
 description = """
 
@@ -18,6 +18,10 @@ Endpoints associated with the users of the system, such as the registration, ret
 ## Roles
 
 Endpoints associated with the user roles, such as their retrieval.
+
+## Chapters
+
+Endpoints associated with the written chapters, such as the interactive and evaluation mode that analyses the chapters.
 """
 
 app = FastAPI(
@@ -48,3 +52,4 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(roles.router)
+app.include_router(chapters.router)

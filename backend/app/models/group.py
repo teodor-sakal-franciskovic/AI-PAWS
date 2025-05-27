@@ -1,5 +1,4 @@
-from sqlalchemy import (TIMESTAMP, Boolean, Column, ForeignKey, Integer,
-                        String, func)
+from sqlalchemy import TIMESTAMP, Column, Integer
 
 from .base import AcademicWritingSchema
 
