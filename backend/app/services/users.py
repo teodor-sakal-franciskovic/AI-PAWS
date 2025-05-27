@@ -1,18 +1,15 @@
-from sqlalchemy.orm import Session
 from fastapi import HTTPException
+from sqlalchemy.orm import Session
 
-from ..models.user import User
 from ..models.role import Role
-
-from ..schemas.users import UserCreate, UpdatedUserInfo, UpdatedUserPassword
-
-from ..utils.auth import get_password_hash
-from ..utils.users import create_user_response
-from ..utils.db import commit_and_refresh, add
-from ..utils.logger import logger
-
-from ..repository.users import retrieve_by_email_from_user
+from ..models.user import User
 from ..repository.roles import retrieve_by_id
+from ..repository.users import retrieve_by_email_from_user
+from ..schemas.users import UpdatedUserInfo, UpdatedUserPassword, UserCreate
+from ..utils.auth import get_password_hash
+from ..utils.db import add, commit_and_refresh
+from ..utils.logger import logger
+from ..utils.users import create_user_response
 
 
 def create_user(user: UserCreate, db: Session):
@@ -27,15 +24,19 @@ def create_user(user: UserCreate, db: Session):
             status_code=400,
             detail=f"User with email address {user.email} already exists",
         )
-    user = User(
-        email=user.email,
-        password=get_password_hash(user.password),
-        name=user.name,
-        surname=user.surname,
-        role_id=user.role_id,
-    )
-    add(db, user)
-    commit_and_refresh(db, user)
+    try:
+        user = User(
+            email=user.email,
+            password=get_password_hash(user.password),
+            name=user.name,
+            surname=user.surname,
+            role_id=user.role_id,
+            group_id=None
+        )
+        add(db, user)
+        commit_and_refresh(db, user)
+    except Exception as e:
+        logger.info(f"e {e}")
     return create_user_response(user, role)
 
 

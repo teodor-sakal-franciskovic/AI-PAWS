@@ -1,32 +1,21 @@
-from fastapi import (
-    APIRouter,
-    Depends,
-    Body,
-)
-from fastapi.responses import JSONResponse, Response
-from sqlalchemy.orm import Session
 from typing import Annotated
 
+from fastapi import APIRouter, Body, Depends
+from fastapi.responses import JSONResponse, Response
+from sqlalchemy.orm import Session
+
+from ..dependencies.auth import (get_current_active_user,
+                                 get_current_active_user_role)
 from ..dependencies.db import get_db
-from ..dependencies.auth import get_current_active_user, get_current_active_user_role
-from ..dependencies.users import (
-    get_create_user,
-    get_retrieve_logged_in_user,
-    get_update_user_info,
-    get_update_user_password,
-    get_deactivate_user,
-)
-
-from ..models.user import User
+from ..dependencies.users import (get_create_user, get_deactivate_user,
+                                  get_retrieve_logged_in_user,
+                                  get_update_user_info,
+                                  get_update_user_password)
 from ..models.role import Role
-
-from ..schemas.users import (
-    UpdatedUserInfo,
-    UserCreate,
-    UserResponse,
-    UpdatedUserPassword,
-)
+from ..models.user import User
 from ..schemas.response import GenericResponse
+from ..schemas.users import (UpdatedUserInfo, UpdatedUserPassword, UserCreate,
+                             UserResponse)
 
 router = APIRouter(
     prefix="/users",
