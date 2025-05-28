@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     algorithm: str
     access_token_expire_minutes: int
 
+    smtp_server: str
+    smtp_port: str
+    smtp_username: str
+    smtp_password: str
+
     class Config:
         env_file = ".env"
 

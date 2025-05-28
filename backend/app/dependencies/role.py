@@ -1,4 +1,4 @@
-from ..services.roles import retrieve_roles
+from ..services.role import retrieve_roles
 
 
 def get_retrieve_roles():

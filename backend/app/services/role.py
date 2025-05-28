@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session
 
 from ..models.role import Role
 
-from ..schemas.roles import RoleResponse
+from ..schemas.role import RoleResponse
 
-from ..repository.roles import retrieve_all
+from ..repository.role import retrieve_all
 
 
 def retrieve_roles(db: Session):

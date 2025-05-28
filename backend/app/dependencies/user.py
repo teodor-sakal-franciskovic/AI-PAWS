@@ -1,10 +1,6 @@
-from ..services.users import (
-    create_user,
-    retrieve_logged_in_user,
-    update_user_info,
-    update_user_password,
-    deactivate_user,
-)
+from ..services.user import (batch_users, create_user, deactivate_user,
+                             retrieve_logged_in_user, update_user_info,
+                             update_user_password)
 
 
 def get_create_user():
@@ -25,3 +21,7 @@ def get_update_user_password():
 
 def get_deactivate_user():
     return deactivate_user
+
+
+def get_batch_users():
+    return batch_users

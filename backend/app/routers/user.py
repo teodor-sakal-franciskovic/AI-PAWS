@@ -1,21 +1,22 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, File, UploadFile, status
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from ..dependencies.auth import (get_current_active_user,
-                                 get_current_active_user_role)
+                                 get_current_active_user_role, require_role)
 from ..dependencies.db import get_db
-from ..dependencies.users import (get_create_user, get_deactivate_user,
-                                  get_retrieve_logged_in_user,
-                                  get_update_user_info,
-                                  get_update_user_password)
+from ..dependencies.user import (get_batch_users, get_create_user,
+                                 get_deactivate_user,
+                                 get_retrieve_logged_in_user,
+                                 get_update_user_info,
+                                 get_update_user_password)
 from ..models.role import Role
 from ..models.user import User
 from ..schemas.response import GenericResponse
-from ..schemas.users import (UpdatedUserInfo, UpdatedUserPassword, UserCreate,
-                             UserResponse)
+from ..schemas.user import (UpdatedUserInfo, UpdatedUserPassword, UserCreate,
+                            UserResponse)
 
 router = APIRouter(
     prefix="/users",
@@ -250,4 +251,20 @@ def deactivate_user(
     deactivate_user(current_user, db)
     return Response(
         status_code=204,
+    )
+
+@router.post("/batch", tags=["users"], status_code=status.HTTP_201_CREATED)
+def create_users_batch(
+    role: Annotated[Role, Depends(require_role("TA"))],
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    batch_users=Depends(get_batch_users)
+):
+    batch_users(file, db)
+    return JSONResponse(
+        status_code=status.HTTP_201_CREATED,
+        content=GenericResponse(
+            message="Succesfully imported users from the provided file.",
+            data=None
+        ).model_dump(),
     )
