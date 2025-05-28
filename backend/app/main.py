@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# needed for Alembic migrations to work
 from .models.base import AcademicWritingSchema
 from .routers import auth, chapter, group, role, user
 

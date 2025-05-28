@@ -7,6 +7,6 @@ class Group(AcademicWritingSchema):
     __tablename__ = "group"
 
     id = Column("id", Integer, primary_key=True)
-    name = Column("name", String)
+    name = Column("name", String, unique=True, nullable=False)
     valid_from = Column("valid_from", TIMESTAMP, nullable=False)
     valid_until = Column("valid_until", TIMESTAMP, nullable=False)
