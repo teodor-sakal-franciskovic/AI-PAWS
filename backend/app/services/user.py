@@ -19,6 +19,7 @@ from ..utils.user import create_user_response
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+
 def create_user(user: UserCreate, db: Session):
     role: Role = retrieve_by_id(db, user)
     if not role:
@@ -38,7 +39,7 @@ def create_user(user: UserCreate, db: Session):
             name=user.name,
             surname=user.surname,
             role_id=user.role_id,
-            group_id=None
+            group_id=None,
         )
         add(db, user)
         commit_and_refresh(db, user)
@@ -78,7 +79,7 @@ def deactivate_user(user: User, db: Session):
 def batch_users(file: UploadFile, db: Session):
     if file.content_type != "text/csv":
         raise HTTPException(status_code=400, detail="File must be a CSV")
-    
+
     try:
         logger.info("Reading students from the uploaded csv...")
         df = pd.read_csv(StringIO(file.file.read().decode("utf-8")))
@@ -86,11 +87,11 @@ def batch_users(file: UploadFile, db: Session):
         raise HTTPException(status_code=400, detail="Failed to parse CSV")
 
     logger.info("Successfully read students from the uploaded csv")
-    required_columns = {"Ime", "Prezime", "Email", "Grupa"}
+    required_columns = {"Ime", "Prezime", "Email", "Grupa", "Indeks"}
     if not required_columns.issubset(df.columns):
         raise HTTPException(
             status_code=400,
-            detail=f"CSV must contain the following columns: {', '.join(required_columns)}"
+            detail=f"CSV must contain the following columns: {', '.join(required_columns)}",
         )
 
     logger.info("Retrieving student role info...")
@@ -112,12 +113,15 @@ def batch_users(file: UploadFile, db: Session):
             surname=row["Prezime"],
             role_id=student_role.id,
             group_id=int(row["Grupa"]),
+            index=row["Indeks"],
         )
         users.append(user)
 
         email_body = get_email_body(row, raw_password)
         try:
-            send_email(row["Email"], "[PIGKUT] Kredencijali za pristup platformi", email_body)
+            send_email(
+                row["Email"], "[PIGKUT] Kredencijali za pristup platformi", email_body
+            )
         except Exception as e:
             logger.info(f"Failed to send email to {row['email']}: {e}")
 

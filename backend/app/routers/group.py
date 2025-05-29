@@ -16,25 +16,24 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
+
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_group(
     group: Annotated[
-        GroupCreate, 
+        GroupCreate,
         Body(
             examples=[
                 {
                     "name": "G_1_2025",
                     "valid_from": "2025-01-01T00:00:00",
-                    "valid_until": "2025-12-31T23:59:59"
+                    "valid_until": "2025-12-31T23:59:59",
                 }
             ]
-        ),],
+        ),
+    ],
     role: Annotated[Role, Depends(require_role("TA"))],
     create_group=Depends(get_create_group),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> GenericResponse:
     create_group(group, db)
-    return GenericResponse(
-        message=f"Successfully created a new group.",
-        data=None
-    )
+    return GenericResponse(message="Successfully created a new group.", data=None)

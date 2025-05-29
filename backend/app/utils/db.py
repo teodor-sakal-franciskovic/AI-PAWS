@@ -1,6 +1,7 @@
 from typing import Any
-from sqlalchemy.orm import Session
+
 from fastapi import HTTPException
+from sqlalchemy.orm import Session
 
 
 def commit_and_refresh(

@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     smtp_username: str
     smtp_password: str
 
+    google_service_account_file: str
+    google_drive_folder_id: str
+
     class Config:
         env_file = ".env"
 

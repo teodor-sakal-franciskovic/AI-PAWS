@@ -1,16 +1,13 @@
-from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
-
 from typing import List
 
+from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-
-from ..schemas.response import GenericResponse
-from ..schemas.role import RoleResponse
 
 from ..dependencies.db import get_db
 from ..dependencies.role import get_retrieve_roles
-
+from ..schemas.response import GenericResponse
+from ..schemas.role import RoleResponse
 
 router = APIRouter(
     prefix="/roles",
