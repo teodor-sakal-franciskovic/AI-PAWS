@@ -11,3 +11,7 @@ langchain==0.3.25
 langchain-community==0.3.24
 pymupdf4llm==0.0.24
 pandas==2.2.3
+google-api-python-client==2.170.0
+google-auth==2.40.2
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.2

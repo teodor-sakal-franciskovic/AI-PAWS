@@ -1,13 +1,12 @@
-import jwt
-from sqlalchemy.orm import Session
-from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 
+import jwt
+from passlib.context import CryptContext
+from sqlalchemy.orm import Session
+
 from ..models.user import User
-
-from ..settings import settings
-
 from ..repository.user import retrieve_by_email
+from ..settings import settings
 
 SECRET_KEY = settings.secret_key
 ALGORITHM = settings.algorithm

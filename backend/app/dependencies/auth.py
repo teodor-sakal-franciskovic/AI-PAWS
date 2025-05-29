@@ -55,8 +55,13 @@ def get_current_active_user_role(
 
 
 def require_role(required: Optional[str] = None):
-    def _require_role(role: Annotated[Role, Depends(get_current_active_user_role)]) -> Role:
+    def _require_role(
+        role: Annotated[Role, Depends(get_current_active_user_role)],
+    ) -> Role:
         if required is not None and role.name != required:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorised access.")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorised access."
+            )
         return role
+
     return _require_role

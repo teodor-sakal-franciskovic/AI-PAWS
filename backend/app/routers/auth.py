@@ -1,16 +1,14 @@
+from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-
-from sqlalchemy.orm import Session
 from passlib.context import CryptContext
-from datetime import timedelta
+from sqlalchemy.orm import Session
 
 from ..dependencies.db import get_db
-from ..settings import settings
 from ..schemas.auth import Token
-
+from ..settings import settings
 from ..utils.auth import authenticate_user, create_access_token
 from ..utils.logger import logger
 
