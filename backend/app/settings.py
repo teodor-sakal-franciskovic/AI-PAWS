@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     google_service_account_file: str
     google_drive_folder_id: str
 
+    openai_api_key: str
+
     class Config:
         env_file = ".env"
 

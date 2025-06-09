@@ -80,4 +80,4 @@ def upload_pdf(
     logger.info(f"File link {file_link}")
 
     # Submission schema will be initiated here and filled with other data in the other functions
-    return {"file_id": file_id, "file_link": file_link}
+    return file_id, file_link

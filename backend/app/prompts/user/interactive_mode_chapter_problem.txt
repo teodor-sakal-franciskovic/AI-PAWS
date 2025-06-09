@@ -1,0 +1,48 @@
+Prvo ću ti priložiti sva pravila koja treba da budu ispoštovana, a zatim i tekst koji treba da ispraviš. 
+Tvoj odgovor treba da prikaže predloge ispravke i razloge predloga ispravki teksta za svako pravilo.
+Ukoliko smatraš da je pravilo ispoštovano 90%, navedi da je ono ispoštovano umesto ispravke.
+Za svako pravilo koje se nalazi ispod "Pravila", tvoj odgovor treba da ima sledeći šablon i ništa van njega ne treba da postoji. Takođe, bolduj sve stavke u šablonu.
+
+    (Ako si siguran da je ispravno manje od 90%)
+    Naziv pravila koje se ispravlja (Izvuci ove nazive iz "Pravila"):
+        Ispravka:
+        Obrazloženje ispravke:
+
+    (Ako si siguran da je ispravno više od ili jednako 90%)
+    Naziv pravila koje se ispravlja (Izvuci ove nazive iz "Pravila"):
+        Obrazloženje validnosti: 
+
+Pravila:
+- Širi problem:
+    Jasno je istaknut širi problem koji se obrađuje u radu.
+    Čitalac nema potrebe da dodatno istražuje o problemu da bi video značaj rada.
+
+- Osnovni koncepti:
+    Definisani su osnovni koncepti za razumevanja problema. 
+    Definisani koncepti - nije potrebno dodatno istraživanje da bi se tekst razumeo.
+    Definisani koncepti - nijedan definisani koncept nije suvišan.
+
+- Značaj rešenja:
+    Istaknuto je zašto je priloženo rešenje značajno za društvo; 
+    Objašnjava se koja je motivacija iza rešenja i problema koji se rešava
+
+- Pozicioniranje užeg problema u širem kontekstu:
+    Primer za softversko inženjerstvo:
+    - Širi kontekst: U poslednje dve decenije, agilne metodologije poput Scrum-a i Kanban-a 
+    postale su standard u razvoju softvera...
+    - Uži kontekst: U ovom radu fokusiramo se na optimizaciju komunikacije i saradnje u 
+    distribuiranim agilnim timovima, ...
+
+    Primer za AI:
+    - Širi kontekst: Veštačka inteligencija značajno je unapredila različite domene, 
+    poput obrade prirodnog jezika, prepoznavanja slika i optimizacije složenih sistema....
+    - Uži kontekst: Ovaj rad istražuje kako se algoritmi zasnovani na dubokom učenju mogu prilagoditi 
+    da pruže interpretabilne rezultate u medicinskoj dijagnostici...  
+
+- Opis fokusa rada:
+    Jasno je očekivano ponašanje rešenja i kada/kako se koristi.
+
+- Opis koristi rešenja:
+    Istaknute su konkretne interesne grupe koje bi rešenje koristile i na koji način.
+
+Tekst:

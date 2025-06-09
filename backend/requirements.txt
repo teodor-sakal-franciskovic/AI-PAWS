@@ -9,6 +9,7 @@ passlib[bcrypt]==1.7.4
 bcrypt==3.2.0
 langchain==0.3.25
 langchain-community==0.3.24
+langchain-openai==0.3.18
 pymupdf4llm==0.0.24
 pandas==2.2.3
 google-api-python-client==2.170.0
