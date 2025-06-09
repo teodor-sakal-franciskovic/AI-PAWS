@@ -2,17 +2,17 @@ from typing import Annotated
 
 import anyio
 from fastapi import APIRouter, Depends, File, UploadFile
+from langchain.schema import HumanMessage
+from langchain_openai import ChatOpenAI
 from sqlalchemy.orm import Session
 
-from langchain_openai import ChatOpenAI
-from langchain.schema import HumanMessage
-
 from ..dependencies.auth import get_current_active_user
-from ..dependencies.chapter import get_extract_pdf_to_markdown, get_extract_chapter_text
+from ..dependencies.chapter import get_extract_chapter_text, get_extract_pdf_to_markdown
 from ..dependencies.db import get_db
 from ..dependencies.google_drive import get_drive_service, get_upload_pdf
+from ..dependencies.submission import get_save_submission
+from ..models.submission import Submission
 from ..models.user import User
-from ..utils.logger import logger
 from ..schemas.response import GenericResponse
 from ..settings import settings
 
@@ -23,7 +23,9 @@ router = APIRouter(
 )
 
 
-@router.post("/{chapter_name}/interactive", response_model=GenericResponse)
+@router.post(
+    "/{chapter_name}/interactive", response_model=GenericResponse
+)  # problem, teorijske osnove, resenje, rezultati
 def upload_chapter_interactive(
     chapter_name: str,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -32,6 +34,7 @@ def upload_chapter_interactive(
     upload_pdf_to_drive=Depends(get_upload_pdf),
     extract_pdf_to_markdown=Depends(get_extract_pdf_to_markdown),
     extract_chapter_text=Depends(get_extract_chapter_text),
+    save_submission=Depends(get_save_submission),
     file: UploadFile = File(...),
 ):
     # llm = ChatOpenAI(model="gpt-4.1", openai_api_key=settings.openai_api_key)
@@ -45,6 +48,15 @@ def upload_chapter_interactive(
     )
     markdown_text = extract_pdf_to_markdown(file_bytes, db)
     extracted_text = extract_chapter_text(markdown_text, chapter_name, db)
+    submission: Submission = save_submission(
+        db,
+        file_id,
+        file_link,
+        extracted_text,
+        chapter_name,
+        "Interaktivni mod",
+        current_user.id,
+    )
     return GenericResponse(
         message=f"Chapter '{chapter_name}' processed successfully.", data=extracted_text
     )
