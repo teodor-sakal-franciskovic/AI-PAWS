@@ -2,8 +2,6 @@ from typing import Annotated
 
 import anyio
 from fastapi import APIRouter, Depends, File, UploadFile
-from langchain.schema import HumanMessage
-from langchain_openai import ChatOpenAI
 from sqlalchemy.orm import Session
 
 from ..dependencies.auth import get_current_active_user
@@ -11,10 +9,12 @@ from ..dependencies.chapter import get_extract_chapter_text, get_extract_pdf_to_
 from ..dependencies.db import get_db
 from ..dependencies.google_drive import get_drive_service, get_upload_pdf
 from ..dependencies.submission import get_save_submission
+from ..dependencies.feedback import get_request_initial_interactive_feedback
+
 from ..models.submission import Submission
 from ..models.user import User
+
 from ..schemas.response import GenericResponse
-from ..settings import settings
 
 router = APIRouter(
     prefix="/chapters",
@@ -35,13 +35,11 @@ def upload_chapter_interactive(
     extract_pdf_to_markdown=Depends(get_extract_pdf_to_markdown),
     extract_chapter_text=Depends(get_extract_chapter_text),
     save_submission=Depends(get_save_submission),
+    request_initial_interactive_feedback=Depends(
+        get_request_initial_interactive_feedback
+    ),
     file: UploadFile = File(...),
 ):
-    # llm = ChatOpenAI(model="gpt-4.1", openai_api_key=settings.openai_api_key)
-
-    # response = llm.invoke("What is the capital of Serbia?")
-
-    # return GenericResponse(message=f"Response {response.content}", data=None)
     file_bytes = anyio.run(file.read)
     file_id, file_link = upload_pdf_to_drive(
         drive_service, file_bytes, current_user, chapter_name, "interaktivni"
@@ -57,6 +55,10 @@ def upload_chapter_interactive(
         "Interaktivni mod",
         current_user.id,
     )
+    response = request_initial_interactive_feedback(
+        db, submission, current_user, chapter_name
+    )
+
     return GenericResponse(
-        message=f"Chapter '{chapter_name}' processed successfully.", data=extracted_text
+        message=f"Chapter '{chapter_name}' processed successfully.", data=response
     )

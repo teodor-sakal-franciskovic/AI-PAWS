@@ -47,7 +47,7 @@ def upgrade() -> None:
         "'Prvo ću ti priložiti sva pravila koja treba da budu ispoštovana, a zatim i tekst koji treba da ispraviš.\n"
         "Tvoj odgovor treba da prikaže predloge ispravke i razloge predloga ispravki teksta za svako pravilo.\n"
         "Ukoliko smatraš da je pravilo ispoštovano 90%, navedi da je ono ispoštovano umesto ispravke\n"
-        "Za svako pravilo koje se nalazi ispod `Pravila`, tvoj odgovor treba da ima sledeći šablon i ništa van njega ne treba da postoji.\n\n"
+        "Za svako pravilo koje se nalazi ispod `Pravila`, tvoj odgovor treba da ima sledeći šablon i ništa van njega ne treba da postoji. Ponavljam, **moraš** mi vratiti odgovor po sledećim šablonima:\n\n"
         "(Ako si siguran da je ispravno manje od 90%)\n"
         "Naziv pravila koje se ispravlja (Izvuci ove nazive iz `Pravila`):\n"
         "Ispravka:\n"
@@ -55,7 +55,7 @@ def upgrade() -> None:
         "(Ako si siguran da je ispravno više od ili jednako 90%)\n"
         "Naziv pravila koje se ispravlja (Izvuci ove nazive iz `Pravila`):\n"
         "Obrazloženje validnosti:\n"
-        "Pravila:',"
+        "Pravila:\n',"
         "'Prompt template used for the initial interaction within the interactive app mode.',"
         "'Initial Interactive')"
     )
