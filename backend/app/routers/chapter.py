@@ -7,13 +7,12 @@ from sqlalchemy.orm import Session
 from ..dependencies.auth import get_current_active_user
 from ..dependencies.chapter import get_extract_chapter_text, get_extract_pdf_to_markdown
 from ..dependencies.db import get_db
-from ..dependencies.google_drive import get_drive_service, get_upload_pdf
-from ..dependencies.submission import get_save_submission
 from ..dependencies.feedback import get_request_initial_interactive_feedback
-
+from ..dependencies.google_drive import get_drive_service, get_upload_pdf
+from ..dependencies.llm import initialise_llm
+from ..dependencies.submission import get_save_submission
 from ..models.submission import Submission
 from ..models.user import User
-
 from ..schemas.response import GenericResponse
 
 router = APIRouter(
@@ -30,6 +29,7 @@ def upload_chapter_interactive(
     chapter_name: str,
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
+    llm=Depends(initialise_llm),
     drive_service=Depends(get_drive_service),
     upload_pdf_to_drive=Depends(get_upload_pdf),
     extract_pdf_to_markdown=Depends(get_extract_pdf_to_markdown),
@@ -56,7 +56,7 @@ def upload_chapter_interactive(
         current_user.id,
     )
     response = request_initial_interactive_feedback(
-        db, submission, current_user, chapter_name
+        db, llm, submission, current_user, chapter_name
     )
 
     return GenericResponse(

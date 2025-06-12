@@ -27,4 +27,3 @@ class Feedback(AcademicWritingSchema):
     inserted_at = Column(
         "inserted_at", TIMESTAMP, nullable=False, server_default=func.now()
     )
-    additional_text = Column("additional_text", String, server_default="")
