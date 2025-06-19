@@ -21,13 +21,17 @@ def generate_system_prompt(
 
 
 def generate_initial_interactive_user_prompt(
-    prompt_template: PromptTemplate, rules: list, submission: Submission
+    initial_interactive_prompt_template: PromptTemplate,
+    knowledge_summarisation_prompt_template: PromptTemplate,
+    rules: list,
+    submission: Submission,
 ):
-    user_prompt = prompt_template.user_text
+    user_prompt = initial_interactive_prompt_template.user_text
     for _, rule_name, rule_description in rules:
         user_prompt += f"{rule_name}\n{rule_description}\n\n"
     user_prompt += "Tekst:\n"
     user_prompt += submission.text
+    user_prompt += f"\n\n{knowledge_summarisation_prompt_template.user_text}"
     return user_prompt
 
 

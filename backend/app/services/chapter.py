@@ -20,7 +20,7 @@ from ..utils.chapter import (
 from ..utils.logger import logger
 
 
-def extract_pdf_to_markdown(file_bytes: bytes, db: Session):
+def extract_pdf_to_markdown(file_bytes: bytes):
     logger.info("Storing the file at a temporary location...")
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
         temp_path = temp_file.name

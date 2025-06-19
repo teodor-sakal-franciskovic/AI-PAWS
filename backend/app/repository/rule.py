@@ -7,7 +7,7 @@ from ..models.grading_aspect import GradingAspect
 from ..models.rule import Rule
 
 
-def get_rules_for_chapter(
+def retrieve_rules_for_chapter(
     db: Session, chapter_name: str, include_in_prompt: bool = False
 ):
     results = (
@@ -27,3 +27,7 @@ def get_rules_for_chapter(
         .all()
     )
     return results
+
+
+def retrieve_by_id(db: Session, id: int):
+    return db.query(Rule).filter(Rule.id == id).first()
