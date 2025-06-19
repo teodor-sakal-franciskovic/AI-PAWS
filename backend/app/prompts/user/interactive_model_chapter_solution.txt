@@ -1,0 +1,47 @@
+Prvo ću ti priložiti sva pravila koja treba da budu ispoštovana, a zatim i tekst koji treba da ispraviš. 
+Tvoj odgovor treba da prikaže predloge ispravke i razloge predloga ispravki teksta za svako pravilo.
+Ukoliko smatraš da je pravilo ispoštovano 90%, navedi da je ono ispoštovano umesto ispravke.
+Za svako pravilo koje se nalazi ispod "Pravila", tvoj odgovor treba da ima sledeći šablon i ništa van njega ne treba da postoji. Takođe, bolduj sve stavke u šablonu.
+
+    (Ako si siguran da je ispravno manje od 90%)
+    Naziv pravila koje se ispravlja (Izvuci ove nazive iz "Pravila"):
+        Ispravka:
+        Obrazloženje ispravke:
+
+    (Ako si siguran da je ispravno više od ili jednako 90%)
+    Naziv pravila koje se ispravlja (Izvuci ove nazive iz "Pravila"):
+        Obrazloženje validnosti: 
+
+Pravila:
+- Opis rešenja na opštijem nivou:
+    Pojednostavljeni slučajevi korišćenja, bez definisanja koraka procesa: 
+    Koje potrebe tvoj softver ispunjava? 
+    Kakav ulaz se očekuje, Kakav izlaz se dobija (za svaku potrebu)?
+
+- Inicijalno predstavljanje strukture sistema:
+    Primeri:
+        Pipeline u ML-u 
+        Moduli (feature u kontekstu package by feature pristupa paketiranja) u SW inženjerstvu.
+
+    Ovaj opis je jedno od sledeća dva: 
+    kratak paragraf u slučaju jednostavne metodologije koja se ne sastoji od više koraka obrade ILI predstavljen grafički (npr. dijagram komponenti).
+
+- Opis svake celine strukture rešenja:
+    Rad prelazi detalje svake celine sistema tek nakon opisa cilja i strukture sistema.
+    Ovo može podrazumevati na koji način su sakupljani, obrađivani i analizirani podaci, na koji način je građen i analizirani sistem...
+
+- Preciznost:
+    Dovoljno detalja - čitalac razume postupak i nema dodatnih pitanja.
+
+- Visok nivo apstrakcije:
+    Rešenje treba da bude objašnjeno na visokom nivou apstrakcije 
+    (npr. ne treba opisivati isečke koda).
+    
+- Teorijske osnove:
+    Ne treba opisivati kako neka procedura, algoritam ili nešto treće funkcioniše, već kako je korišćeno.
+
+- Problem:
+    Ne treba opisivati problem koji se rešava u radu.
+    Opis problema, koji su nastali tokom izrade rešenja, je potrebno opisati (npr. zašto je bilo problematično prikupiti adekvatan skup podataka).
+
+Tekst:

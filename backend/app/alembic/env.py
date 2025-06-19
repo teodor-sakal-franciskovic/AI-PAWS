@@ -33,7 +33,9 @@ from app.models.submission_mode import SubmissionMode  # noqa
 from app.models.user import User  # noqa
 
 # target_metadata = mymodel.Base.metadata
-target_metadata = [AcademicWritingSchema.metadata, ]
+target_metadata = [
+    AcademicWritingSchema.metadata,
+]
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
