@@ -77,7 +77,7 @@ def downgrade() -> None:
     op.drop_column("fulfillment", "feedback_id", schema="academic_writing_schema")
     op.add_column(
         "feedback",
-        sa.Column("fulfillment_id", sa.INTEGER(), autoincrement=False, nullable=False),
+        sa.Column("fulfillment_id", sa.INTEGER(), autoincrement=False, nullable=True),
         schema="academic_writing_schema",
     )
     op.create_foreign_key(
