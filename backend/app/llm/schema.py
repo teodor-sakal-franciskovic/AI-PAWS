@@ -13,3 +13,8 @@ class LLMRuleFeedback(BaseModel):
 class LLMFeedbackResponse(BaseModel):
     feedback: List[LLMRuleFeedback]
     updated_knowledge: str
+
+
+class LLMAdditionalFeedbackResponse(BaseModel):
+    additional_explanation: str
+    updated_knowledge: str
