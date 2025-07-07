@@ -1,7 +1,8 @@
-from typing import Annotated
+from typing import Annotated, List
 
 import anyio
 from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from ..dependencies.auth import get_current_active_user
@@ -15,10 +16,12 @@ from ..dependencies.google_drive import get_drive_service, get_upload_pdf
 from ..dependencies.llm import initialise_llm
 from ..dependencies.submission import get_save_submission
 from ..dependencies.historical_profile import get_insert_historical_profile_snapshot
+from ..dependencies.chapter import get_retrieve_chapters
 from ..models.submission import Submission
 from ..models.user import User
 from ..schemas.response import GenericResponse
 from ..schemas.feedback import InteractiveFeedbackResponse
+from ..schemas.chapter import ChapterResponse
 from ..llm.schema import LLMFeedbackResponse
 
 router = APIRouter(
@@ -79,6 +82,24 @@ def upload_chapter_interactive(
         db, current_user, submission, llm_feedback_response.updated_knowledge
     )
 
-    return GenericResponse(
-        message=f"Chapter '{chapter_name}' processed successfully.", data=feedbacks
-    ).model_dump()
+    return JSONResponse(
+        status_code=200,
+        content=GenericResponse(
+            message=f"Chapter '{chapter_name}' processed successfully.",
+            data=feedbacks,
+        ).model_dump(),
+    )
+
+
+@router.get("/", response_model=GenericResponse)
+def retrieve_chapters(
+    db: Session = Depends(get_db),
+    retrieve_chapters=Depends(get_retrieve_chapters),
+):
+    chapters: List[ChapterResponse] = retrieve_chapters(db)
+    return JSONResponse(
+        status_code=200,
+        content=GenericResponse(
+            message="Successfully retrieved chapters", data=chapters
+        ).model_dump(),
+    )

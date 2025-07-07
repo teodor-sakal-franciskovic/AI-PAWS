@@ -78,6 +78,4 @@ def upload_pdf(
     file_link = f"https://drive.google.com/file/d/{file_id}/view"
 
     logger.info(f"File link {file_link}")
-
-    # Submission schema will be initiated here and filled with other data in the other functions
     return file_id, file_link

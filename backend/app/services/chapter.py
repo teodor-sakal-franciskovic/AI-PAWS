@@ -6,6 +6,7 @@ import tempfile
 import pymupdf4llm
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from typing import List
 
 from ..utils.chapter import (
     add_chapter_end_indices,
@@ -18,6 +19,9 @@ from ..utils.chapter import (
     normalise_title,
 )
 from ..utils.logger import logger
+from ..models.chapter import Chapter
+from ..repository.chapter import retrieve_all
+from ..schemas.chapter import ChapterResponse
 
 
 def extract_pdf_to_markdown(file_bytes: bytes):
@@ -66,3 +70,10 @@ def extract_chapter_text(markdown_text: str, chapter_name: str, db: Session) -> 
     extracted = extract_chapter_by_title(latin_text, chapters, normalised_target)
     logger.info(f"Extracted chapter '{chapter_name}' with length {len(extracted)}")
     return extracted
+
+
+def retrieve_chapters(db: Session):
+    logger.info("Retrieving all chapters...")
+    chapters: List[Chapter] = retrieve_all(db)
+    logger.info("Successfully retrieved all chapters")
+    return [ChapterResponse(id=chapter.id, name=chapter.name) for chapter in chapters]

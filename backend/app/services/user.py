@@ -8,9 +8,15 @@ from sqlalchemy.orm import Session
 
 from ..models.role import Role
 from ..models.user import User
-from ..repository.role import retrieve_by_id, retrieve_by_name
+from ..models.submission import Submission
+from ..repository.role import retrieve_by_id as retrieve_role_by_id, retrieve_by_name
 from ..repository.user import retrieve_by_email_from_user
+from ..repository.submission import retrieve_by_user_and_chapter
+from ..repository.submission_mode import (
+    retrieve_by_id as retrieve_submission_mode_by_id,
+)
 from ..schemas.user import UpdatedUserInfo, UpdatedUserPassword, UserCreate
+from ..schemas.submission import SubmissionResponse
 from ..utils.auth import get_password_hash
 from ..utils.db import add, commit_and_refresh
 from ..utils.email import get_email_body, send_email
@@ -21,7 +27,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def create_user(user: UserCreate, db: Session):
-    role: Role = retrieve_by_id(db, user)
+    role: Role = retrieve_role_by_id(db, user)
     if not role:
         raise HTTPException(
             status_code=400, detail=f"Role ID {user.role_id} does not exist"
@@ -129,3 +135,33 @@ def batch_users(file: UploadFile, db: Session):
     db.commit()
 
     logger.info(f"{len(users)} users imported successfully")
+
+
+def retrieve_submissions_for_specific_chapter(
+    db: Session,
+    user: User,
+    chapter_id: str,
+) -> list[SubmissionResponse]:
+    logger.info(
+        f"Retrieving submissions for the user {user.id} for the chapter {chapter_id}..."
+    )
+    submissions: list[Submission] = retrieve_by_user_and_chapter(
+        db, user.id, chapter_id
+    )
+    submission_responses = []
+    for submission in submissions:
+        submission_responses.append(
+            SubmissionResponse(
+                id=submission.id,
+                text=submission.text,
+                gd_file_id=submission.gd_file_id,
+                gd_file_link=submission.gd_file_link,
+                achieved_points=submission.achieved_points,
+                submission_mode=retrieve_submission_mode_by_id(
+                    db, submission.submission_mode_id
+                ).name,
+                submitted_at=submission.submitted_at,
+            )
+        )
+    logger.info("Successfully retrieved submissions")
+    return submission_responses

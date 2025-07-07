@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from ..dependencies.auth import require_role
@@ -34,6 +35,10 @@ def create_group(
     role: Annotated[Role, Depends(require_role("TA"))],
     create_group=Depends(get_create_group),
     db: Session = Depends(get_db),
-) -> GenericResponse:
+):
     create_group(group, db)
-    return GenericResponse(message="Successfully created a new group.", data=None)
+
+    return JSONResponse(
+        status_code=200,
+        content=GenericResponse(message="Successfully created a new group.", data=None),
+    )
