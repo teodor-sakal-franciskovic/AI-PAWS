@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from ..dependencies.auth import get_current_active_user
@@ -76,7 +77,10 @@ def upload_chapter_interactive(
         db, current_user, submission, llm_additional_feedback_response.updated_knowledge
     )
 
-    return GenericResponse(
-        message=f"Successfully provided additional feedback for the feedback with id {feedback_id}.",
-        data=updated_feedback,
-    ).model_dump()
+    return JSONResponse(
+        status_code=200,
+        content=GenericResponse(
+            message=f"Successfully provided additional feedback for the feedback with id {feedback_id}.",
+            data=updated_feedback,
+        ).model_dump(),
+    )

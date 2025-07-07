@@ -5,6 +5,7 @@ from ..services.user import (
     retrieve_logged_in_user,
     update_user_info,
     update_user_password,
+    retrieve_submissions_for_specific_chapter,
 )
 
 
@@ -30,3 +31,7 @@ def get_deactivate_user():
 
 def get_batch_users():
     return batch_users
+
+
+def get_retrieve_submissions_for_specific_chapter():
+    return retrieve_submissions_for_specific_chapter
