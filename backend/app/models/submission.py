@@ -1,4 +1,13 @@
-from sqlalchemy import TIMESTAMP, Column, ForeignKey, Integer, String, func
+from sqlalchemy import (
+    TIMESTAMP,
+    Column,
+    ForeignKey,
+    Integer,
+    String,
+    func,
+    Boolean,
+    text as sqlalchemy_text,
+)
 
 from .base import AcademicWritingSchema
 
@@ -17,3 +26,4 @@ class Submission(AcademicWritingSchema):
     user_id = Column("user_id", Integer, ForeignKey("user.id"))
     chapter_id = Column("chapter_id", Integer, ForeignKey("chapter.id"))
     submission_mode_id = Column("mode_id", Integer)
+    graded = Column("graded", Boolean, server_default=sqlalchemy_text("false"))

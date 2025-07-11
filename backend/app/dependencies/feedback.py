@@ -4,6 +4,8 @@ from ..services.feedback import (
     create_feedback_objects_for_interactive_mode,
     retrieve_feedback,
     update_feedback_with_additional_context,
+    request_evaluation,
+    create_feedback_objects_for_evaluative_mode,
 )
 
 
@@ -25,3 +27,11 @@ def get_retrieve_feedback():
 
 def get_update_feedback_with_additional_text():
     return update_feedback_with_additional_context
+
+
+def get_request_evaluation():
+    return request_evaluation
+
+
+def get_create_feedback_objects_for_evaluative_mode():
+    return create_feedback_objects_for_evaluative_mode
