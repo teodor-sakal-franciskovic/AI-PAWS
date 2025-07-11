@@ -161,6 +161,7 @@ def create_users_batch(
 @router.get("/chapter/{chapter_id}/submissions")
 def retrieve_submissions_for_chapter(
     chapter_id: int,
+    role: Annotated[Role, Depends(require_role("Student"))],
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
     retrieve_submissions_for_specific_chapter=Depends(

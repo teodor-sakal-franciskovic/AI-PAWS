@@ -18,3 +18,14 @@ class LLMFeedbackResponse(BaseModel):
 class LLMAdditionalFeedbackResponse(BaseModel):
     additional_explanation: str
     updated_knowledge: str
+
+
+class LLMRuleEvaluation(BaseModel):
+    rule_name: str
+    grade: int
+    grade_explanation: str
+
+
+class LLMEvaluationResponse(BaseModel):
+    evaluation: List[LLMRuleEvaluation]
+    updated_knowledge: str

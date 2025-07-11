@@ -10,7 +10,7 @@ from ..models.rule import Rule
 def retrieve_rules_for_chapter(
     db: Session, chapter_name: str, include_in_prompt: bool = False
 ):
-    results = (
+    query = (
         db.query(
             Rule.id.label("rule_id"),
             Rule.name.label("rule_name"),
@@ -23,9 +23,12 @@ def retrieve_rules_for_chapter(
         )
         .join(Chapter, Chapter.id == ChapterGradingAspect.chapter_id)
         .filter(func.lower(Chapter.name) == chapter_name.lower())
-        .filter(Rule.include_in_prompt.is_(include_in_prompt))
-        .all()
     )
+
+    if include_in_prompt:
+        query = query.filter(Rule.include_in_prompt.is_(True))
+
+    results = query.all()
     return results
 
 

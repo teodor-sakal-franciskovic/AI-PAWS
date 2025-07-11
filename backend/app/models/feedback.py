@@ -17,6 +17,9 @@ class Feedback(AcademicWritingSchema):
 
     id = Column("id", Integer, primary_key=True)
     feedback_text = Column("feedback_text", String)
+    final_feedback_text = Column(
+        "final_feedback_text", String
+    )  # Only in evaluative mode!
     initially_fulfilled = Column(
         "initially_fulfilled", Boolean, server_default=text("true")
     )

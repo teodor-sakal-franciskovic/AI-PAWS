@@ -5,7 +5,11 @@ from langchain.prompts import ChatPromptTemplate
 from ..models.historical_profile import HistoricalProfile
 from ..models.prompt_template import PromptTemplate
 from ..models.submission import Submission
-from .schema import LLMFeedbackResponse, LLMAdditionalFeedbackResponse
+from .schema import (
+    LLMFeedbackResponse,
+    LLMAdditionalFeedbackResponse,
+    LLMEvaluationResponse,
+)
 
 
 def generate_system_prompt(
@@ -20,13 +24,13 @@ def generate_system_prompt(
     return system_prompt
 
 
-def generate_initial_interactive_user_prompt(
-    initial_interactive_prompt_template: PromptTemplate,
+def generate_user_prompt_for_initial_interactive_and_evaluative_mode(
+    prompt_template: PromptTemplate,
     knowledge_summarisation_prompt_template: PromptTemplate,
     rules: list,
     submission: Submission,
 ):
-    user_prompt = initial_interactive_prompt_template.user_text
+    user_prompt = prompt_template.user_text
     for _, rule_name, rule_description in rules:
         user_prompt += f"{rule_name}\n{rule_description}\n\n"
     user_prompt += "Tekst:\n"
@@ -87,6 +91,8 @@ def _initialise_llm_response_schema(pydantic_object_name: str):
         return LLMFeedbackResponse
     elif pydantic_object_name == "LLMAdditionalFeedbackResponse":
         return LLMAdditionalFeedbackResponse
+    elif pydantic_object_name == "LLMEvaluationResponse":
+        return LLMEvaluationResponse
     else:
         raise HTTPException(
             status_code=500,
