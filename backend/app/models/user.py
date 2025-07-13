@@ -27,3 +27,6 @@ class User(AcademicWritingSchema):
         "created_at", TIMESTAMP, nullable=False, server_default=func.now()
     )
     group_id = Column("group_id", Integer, ForeignKey("group.id"), nullable=True)
+    assigned_to_ta = Column(
+        "assigned_to_ta", Integer, ForeignKey("user.id"), nullable=True
+    )

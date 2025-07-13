@@ -13,3 +13,11 @@ def retrieve_by_user_and_chapter(db: Session, user_id: int, chapter_id: int):
         .filter(Submission.user_id == user_id, Submission.chapter_id == chapter_id)
         .all()
     )
+
+
+def update_submission_grade(db: Session, id: int, percentage: float):
+    submission = db.query(Submission).filter(Submission.id == id).first()
+    submission.achieved_points_percentage = percentage
+    submission.graded = True
+    db.commit()
+    return submission

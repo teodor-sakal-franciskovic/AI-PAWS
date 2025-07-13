@@ -1,4 +1,7 @@
 from pydantic import BaseModel, EmailStr
+from typing import List
+
+from .submission import EvaluativeSubmissionSchema
 
 
 class UserCreate(BaseModel):
@@ -25,3 +28,11 @@ class UpdatedUserInfo(BaseModel):
 class UpdatedUserPassword(BaseModel):
     password: str
     confirmed_password: str
+
+
+class EvaluativeUserSubmissionResponse(BaseModel):
+    user_id: int
+    user_index: str
+    name: str
+    surname: str
+    submissions: List[EvaluativeSubmissionSchema]

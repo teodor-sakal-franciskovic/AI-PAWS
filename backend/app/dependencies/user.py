@@ -6,6 +6,8 @@ from ..services.user import (
     update_user_info,
     update_user_password,
     retrieve_submissions_for_specific_chapter,
+    retrieve_evaluative_submissions_for_ta_students,
+    grade_submission,
 )
 
 
@@ -35,3 +37,11 @@ def get_batch_users():
 
 def get_retrieve_submissions_for_specific_chapter():
     return retrieve_submissions_for_specific_chapter
+
+
+def get_retrieve_evaluative_submissions_for_ta_students():
+    return retrieve_evaluative_submissions_for_ta_students
+
+
+def get_grade_submission():
+    return grade_submission
