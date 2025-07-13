@@ -17,3 +17,9 @@ class EvaluativeFeedbackResponse(BaseModel):
     rule_description: str
     grade: Any
     grade_explanation: str
+
+
+class EvaluativeFeedbackSchema(BaseModel):
+    feedback_id: int
+    feedback_text: Any
+    final_feedback_text: Any

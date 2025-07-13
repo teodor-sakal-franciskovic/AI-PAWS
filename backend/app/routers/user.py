@@ -20,16 +20,19 @@ from ..dependencies.user import (
     get_update_user_info,
     get_update_user_password,
     get_retrieve_submissions_for_specific_chapter,
+    get_retrieve_evaluative_submissions_for_ta_students,
+    get_grade_submission,
 )
 from ..models.role import Role
 from ..models.user import User
-from ..schemas.submission import SubmissionResponse
+from ..schemas.submission import SubmissionResponse, TAEvaluationGradesRequest
 from ..schemas.response import GenericResponse
 from ..schemas.user import (
     UpdatedUserInfo,
     UpdatedUserPassword,
     UserCreate,
     UserResponse,
+    EvaluativeUserSubmissionResponse,
 )
 
 router = APIRouter(
@@ -179,4 +182,45 @@ def retrieve_submissions_for_chapter(
                 data=submissions,
             ).model_dump_json()
         ),
+    )
+
+
+@router.get("/my-students/submissions/evaluative")
+def retrieve_my_students_evaluative_submissions(
+    role: Annotated[Role, Depends(require_role("TA"))],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Session = Depends(get_db),
+    retrieve_evaluative_submissions_for_ta_students=Depends(
+        get_retrieve_evaluative_submissions_for_ta_students
+    ),
+):
+    evaluative_submissions: EvaluativeUserSubmissionResponse = (
+        retrieve_evaluative_submissions_for_ta_students(db, current_user)
+    )
+    return JSONResponse(
+        status_code=200,
+        content=json.loads(
+            GenericResponse(
+                message="Successfully retrieved evaluative submissions",
+                data=evaluative_submissions,
+            ).model_dump_json(),
+        ),
+    )
+
+
+@router.put("/submission/{submission_id}/grade")
+def grade_submission(
+    submission_id: int,
+    body: TAEvaluationGradesRequest,
+    role: Annotated[Role, Depends(require_role("TA"))],
+    db: Session = Depends(get_db),
+    grade_submission=Depends(get_grade_submission),
+):
+    grade_submission(db, submission_id, body)
+    return JSONResponse(
+        status_code=200,
+        content=GenericResponse(
+            message=f"Successfully graded submission for submission {submission_id}",
+            data=None,
+        ).model_dump(),
     )

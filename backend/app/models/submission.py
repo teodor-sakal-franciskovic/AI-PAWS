@@ -7,6 +7,7 @@ from sqlalchemy import (
     func,
     Boolean,
     text as sqlalchemy_text,
+    Float,
 )
 
 from .base import AcademicWritingSchema
@@ -22,7 +23,7 @@ class Submission(AcademicWritingSchema):
     text = Column("text", String)
     gd_file_id = Column("gd_file_id", String)
     gd_file_link = Column("gd_file_link", String)
-    achieved_points = Column("achieved_points", Integer)
+    achieved_points_percentage = Column("achieved_points_percentage", Float)
     user_id = Column("user_id", Integer, ForeignKey("user.id"))
     chapter_id = Column("chapter_id", Integer, ForeignKey("chapter.id"))
     submission_mode_id = Column("mode_id", Integer)

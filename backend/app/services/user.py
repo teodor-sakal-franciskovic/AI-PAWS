@@ -5,23 +5,45 @@ import pandas as pd
 from fastapi import HTTPException, UploadFile
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
+from typing import List
 
 from ..models.role import Role
 from ..models.user import User
 from ..models.submission import Submission
-from ..repository.role import retrieve_by_id as retrieve_role_by_id, retrieve_by_name
-from ..repository.user import retrieve_by_email_from_user
-from ..repository.submission import retrieve_by_user_and_chapter
+from ..repository.role import (
+    retrieve_by_id as retrieve_role_by_id,
+    retrieve_by_name as retrieve_role_by_name,
+)
+from ..repository.user import (
+    retrieve_by_email_from_user,
+    retrieve_evaluative_submissions,
+)
+from ..repository.submission import (
+    retrieve_by_user_and_chapter,
+    update_submission_grade,
+)
 from ..repository.submission_mode import (
     retrieve_by_id as retrieve_submission_mode_by_id,
+    retrieve_by_name as retrieve_submission_mode_by_name,
 )
-from ..schemas.user import UpdatedUserInfo, UpdatedUserPassword, UserCreate
-from ..schemas.submission import SubmissionResponse
+from ..repository.feedback import update_final_feedback_text
+from ..repository.fulfillment import update_final_fulfillment_value
+from ..schemas.user import (
+    UpdatedUserInfo,
+    UpdatedUserPassword,
+    UserCreate,
+    EvaluativeUserSubmissionResponse,
+)
+from ..schemas.submission import (
+    SubmissionResponse,
+    TAEvaluationGradesRequest,
+    TAEvaluationGrade,
+)
 from ..utils.auth import get_password_hash
 from ..utils.db import add, commit_and_refresh
 from ..utils.email import get_email_body, send_email
 from ..utils.logger import logger
-from ..utils.user import create_user_response
+from ..utils.user import create_user_response, group_submission_data
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -101,7 +123,7 @@ def batch_users(file: UploadFile, db: Session):
         )
 
     logger.info("Retrieving student role info...")
-    student_role = retrieve_by_name(db, "Student")
+    student_role = retrieve_role_by_name(db, "Student")
     if not student_role:
         raise HTTPException(status_code=404, detail="Student role not found")
     logger.info("Successfully retrieved student role info")
@@ -156,7 +178,7 @@ def retrieve_submissions_for_specific_chapter(
                 text=submission.text,
                 gd_file_id=submission.gd_file_id,
                 gd_file_link=submission.gd_file_link,
-                achieved_points=submission.achieved_points,
+                achieved_points_percentage=submission.achieved_points_percentage,
                 submission_mode=retrieve_submission_mode_by_id(
                     db, submission.submission_mode_id
                 ).name,
@@ -165,3 +187,32 @@ def retrieve_submissions_for_specific_chapter(
         )
     logger.info("Successfully retrieved submissions")
     return submission_responses
+
+
+def retrieve_evaluative_submissions_for_ta_students(db: Session, ta: User):
+    evaluative_submission_mode: Submission = retrieve_submission_mode_by_name(
+        db, "Evalucioni mod"
+    )
+
+    submissions = retrieve_evaluative_submissions(
+        db, ta.id, evaluative_submission_mode.id
+    )
+
+    evaluative_user_submission_response: EvaluativeUserSubmissionResponse = (
+        group_submission_data(submissions)
+    )
+    return evaluative_user_submission_response
+
+
+def grade_submission(
+    db: Session, submission_id: int, ta_evaluation_grades: TAEvaluationGradesRequest
+):
+    grades: List[TAEvaluationGrade] = ta_evaluation_grades.evaluation_grades
+    max_points = 2 * len(grades)
+    achieved_points = 0
+    for grade in grades:
+        update_final_feedback_text(db, grade.feedback_id, grade.final_feedback)
+        update_final_fulfillment_value(db, grade.fulfillment_id, grade.final_grade)
+        achieved_points += grade.final_grade
+    achieved_points_percentage = achieved_points / max_points
+    update_submission_grade(db, submission_id, achieved_points_percentage)

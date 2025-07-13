@@ -13,3 +13,11 @@ def update_with_additional_text(db: Session, id: int, additional_text: str):
     db.commit()
     db.refresh(feedback)
     return feedback
+
+
+def update_final_feedback_text(db: Session, id: int, new_comment: str):
+    feedback = retrieve_by_id(db, id)
+    feedback.final_feedback_text = new_comment
+    db.commit()
+    db.refresh(feedback)
+    return feedback
