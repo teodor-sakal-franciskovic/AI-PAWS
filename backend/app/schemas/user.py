@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import List
+from typing import List, Optional
 
 from .submission import EvaluativeSubmissionSchema
 
@@ -18,6 +18,7 @@ class UserResponse(BaseModel):
     name: str
     surname: str
     role: str
+    index: Optional[str] = None
 
 
 class UpdatedUserInfo(BaseModel):

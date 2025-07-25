@@ -6,6 +6,7 @@ from ..services.feedback import (
     update_feedback_with_additional_context,
     request_evaluation,
     create_feedback_objects_for_evaluative_mode,
+    invalidate_feedback,
 )
 
 
@@ -35,3 +36,7 @@ def get_request_evaluation():
 
 def get_create_feedback_objects_for_evaluative_mode():
     return create_feedback_objects_for_evaluative_mode
+
+
+def get_invalidate_feedback():
+    return invalidate_feedback

@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import Any
 
 
+# TODO - Mozda menjati response za additional
 class InteractiveFeedbackResponse(BaseModel):
     id: int
     feedback_text: str

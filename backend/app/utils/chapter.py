@@ -98,7 +98,7 @@ def get_valid_chapter_titles(db: Session) -> List[str]:
 
 def find_chapter_matches(text: str) -> List[re.Match]:
     pattern = re.compile(
-        r"^(?P<num>[IVXLC]+)\.?\s+(?P<title>[A-ZĆČŽŠĐ\s]+)$", re.MULTILINE
+        r"^(?P<num>[IVXLC]+)\.?\s+(?P<title>[A-ZĆČŽŠĐ\sj]+)$", re.MULTILINE
     )
     matches = list(pattern.finditer(text))
     if not matches:
@@ -113,10 +113,13 @@ def find_chapter_matches(text: str) -> List[re.Match]:
 def identify_valid_chapters(
     matches: List[re.Match], valid_titles: List[str]
 ) -> List[Dict]:
+    logger.info(f"Matches {matches}")
+    logger.info(f"Valid titles {valid_titles}")
     chapters = []
     for match in matches:
         raw_title = match.group("title")
         normalised_title = normalise_title(raw_title)
+        logger.info(f"Normalised title {normalised_title}")
         if normalised_title in valid_titles:
             chapters.append({"title": normalised_title, "start": match.start()})
     return chapters
@@ -136,6 +139,7 @@ def add_chapter_end_indices(chapters: List[Dict], end_of_text: int) -> None:
 
 
 def extract_chapter_by_title(text: str, chapters: List[Dict], target_title: str) -> str:
+    logger.info(f"Chapters {chapters}, text {text}, target_tile {target_title}")
     for chapter in chapters:
         if chapter["title"] == target_title:
             chapter_text = text[chapter["start"] : chapter["end"]].strip()

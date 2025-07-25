@@ -1,6 +1,7 @@
 import json
 
 from typing import Annotated
+from copy import deepcopy
 
 from fastapi import APIRouter, Body, Depends, File, UploadFile, status
 from fastapi.responses import JSONResponse, Response
@@ -12,6 +13,7 @@ from ..dependencies.auth import (
     require_role,
 )
 from ..dependencies.db import get_db
+from ..dependencies.llm import initialise_llm
 from ..dependencies.user import (
     get_batch_users,
     get_create_user,
@@ -19,13 +21,21 @@ from ..dependencies.user import (
     get_retrieve_logged_in_user,
     get_update_user_info,
     get_update_user_password,
-    get_retrieve_submissions_for_specific_chapter,
     get_retrieve_evaluative_submissions_for_ta_students,
     get_grade_submission,
+    get_retrieve_user_by_id,
 )
+from ..dependencies.historical_profile import (
+    get_insert_historical_profile_snapshot,
+    get_retrieve_updated_student_knowledge_from_evaluative_mode,
+)
+from ..dependencies.submission import get_retrieve_submission
+
+from ..llm.schema import LLMUpdatedKnowledge
 from ..models.role import Role
 from ..models.user import User
-from ..schemas.submission import SubmissionResponse, TAEvaluationGradesRequest
+from ..models.submission import Submission
+from ..schemas.submission import TAEvaluationGradesRequest
 from ..schemas.response import GenericResponse
 from ..schemas.user import (
     UpdatedUserInfo,
@@ -53,7 +63,7 @@ def register(
                     "password": "Example123!",
                     "name": "John",
                     "surname": "Padilla",
-                    "role_id": 1,
+                    "role_id": 2,
                 }
             ]
         ),
@@ -161,30 +171,6 @@ def create_users_batch(
     )
 
 
-@router.get("/chapter/{chapter_id}/submissions")
-def retrieve_submissions_for_chapter(
-    chapter_id: int,
-    role: Annotated[Role, Depends(require_role("Student"))],
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    db: Session = Depends(get_db),
-    retrieve_submissions_for_specific_chapter=Depends(
-        get_retrieve_submissions_for_specific_chapter
-    ),
-):
-    submissions: list[SubmissionResponse] = retrieve_submissions_for_specific_chapter(
-        db, current_user, chapter_id
-    )
-    return JSONResponse(
-        status_code=200,
-        content=json.loads(
-            GenericResponse(
-                message=f"Succesfully retrieved submissions for user {current_user.id}, for chapter {chapter_id}.",
-                data=submissions,
-            ).model_dump_json()
-        ),
-    )
-
-
 @router.get("/my-students/submissions/evaluative")
 def retrieve_my_students_evaluative_submissions(
     role: Annotated[Role, Depends(require_role("TA"))],
@@ -208,15 +194,35 @@ def retrieve_my_students_evaluative_submissions(
     )
 
 
+# TODO - Mozda slati email studentima?
 @router.put("/submission/{submission_id}/grade")
 def grade_submission(
     submission_id: int,
     body: TAEvaluationGradesRequest,
     role: Annotated[Role, Depends(require_role("TA"))],
+    llm=Depends(initialise_llm),
     db: Session = Depends(get_db),
     grade_submission=Depends(get_grade_submission),
+    retrieve_submission=Depends(get_retrieve_submission),
+    retrieve_updated_student_knowledge_from_evaluative_mode=Depends(
+        get_retrieve_updated_student_knowledge_from_evaluative_mode
+    ),
+    insert_historical_profile_snapshot=Depends(get_insert_historical_profile_snapshot),
+    retrieve_user_by_id=Depends(get_retrieve_user_by_id),
 ):
+    submission: Submission = retrieve_submission(db, submission_id)
+    initial_graded_status = deepcopy(submission.graded)
     grade_submission(db, submission_id, body)
+    if not initial_graded_status:
+        updated_student_knowledge: LLMUpdatedKnowledge = (
+            retrieve_updated_student_knowledge_from_evaluative_mode(
+                db, llm, body, submission_id
+            )
+        )
+        user: User = retrieve_user_by_id(db, submission.user_id)
+        insert_historical_profile_snapshot(
+            db, user, submission, updated_student_knowledge.updated_knowledge
+        )
     return JSONResponse(
         status_code=200,
         content=GenericResponse(

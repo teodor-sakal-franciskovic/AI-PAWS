@@ -49,11 +49,10 @@ def upgrade() -> None:
     op.execute(
         "INSERT INTO academic_writing_schema.prompt_template (system_text, user_text, description, purpose) "
         "VALUES "
-        "('', "
-        "'Nakon što si oformirao prethodno-spomenuti JSON vezan za evaluaciju teksta, potrebno je da u taj JSON dodaš još jedno polje.\n"
-        "To polje treba da ima ključ ```updated_knowledge``` i njegova vrednost treba da predstavlja ažurirano znanje studenta na osnovu:\n"
-        "1) njegovog prethodnog znanja što sam ti prosledio u system prompt-u i"
-        "2) zaključaka koje si izveo iz evaluacije datog teksta.',"
+        "('Ti si recenzent koji je prethodno ocenio naučni rad na osnovu definisanih pravila. Sada je samo potrebno da ažuriraš uočeno znanje studenta na osnovu prethodnog uočenog znanja i novonastalih zaključaka.', "
+        "'Potrebno je da oformiraš JSON, koji će imati ključ ```updated_knowledge``` i njegova vrednost treba da predstavlja ažurirano znanje studenta na osnovu:.\n"
+        "1) njegovog prethodnog znanja, koje je: {summarised_knowledge} i"
+        "2) zaključaka koji su izvedeni iz evaluacije: {evaluative_conclusion}. Uzmi u obzir da je najmanja ocena po pravilu 0, a najveća 2.',"
         "'Prompt template used for the update of the summarised student knowledge in the evaluative mode.',"
         "'Knowledge Summarisation Evaluative')"
     )

@@ -10,3 +10,7 @@ def retrieve_all(db: Session):
 
 def retrieve_by_name(db: Session, name: str):
     return db.query(Chapter).filter(func.lower(Chapter.name) == name.lower()).first()
+
+
+def retrieve_by_id(db: Session, id: int):
+    return db.query(Chapter).filter(Chapter.id == id).first()

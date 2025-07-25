@@ -28,4 +28,7 @@ class LLMRuleEvaluation(BaseModel):
 
 class LLMEvaluationResponse(BaseModel):
     evaluation: List[LLMRuleEvaluation]
+
+
+class LLMUpdatedKnowledge(BaseModel):
     updated_knowledge: str

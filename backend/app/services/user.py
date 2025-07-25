@@ -17,13 +17,10 @@ from ..repository.role import (
 from ..repository.user import (
     retrieve_by_email_from_user,
     retrieve_evaluative_submissions,
+    retrieve_by_id as retrieve_user_by_id_db,
 )
-from ..repository.submission import (
-    retrieve_by_user_and_chapter,
-    update_submission_grade,
-)
+from ..repository.submission import update_submission_grade
 from ..repository.submission_mode import (
-    retrieve_by_id as retrieve_submission_mode_by_id,
     retrieve_by_name as retrieve_submission_mode_by_name,
 )
 from ..repository.feedback import update_final_feedback_text
@@ -35,7 +32,6 @@ from ..schemas.user import (
     EvaluativeUserSubmissionResponse,
 )
 from ..schemas.submission import (
-    SubmissionResponse,
     TAEvaluationGradesRequest,
     TAEvaluationGrade,
 )
@@ -68,6 +64,7 @@ def create_user(user: UserCreate, db: Session):
             surname=user.surname,
             role_id=user.role_id,
             group_id=None,
+            assigned_to_ta=None,
         )
         add(db, user)
         commit_and_refresh(db, user)
@@ -115,7 +112,7 @@ def batch_users(file: UploadFile, db: Session):
         raise HTTPException(status_code=400, detail="Failed to parse CSV")
 
     logger.info("Successfully read students from the uploaded csv")
-    required_columns = {"Ime", "Prezime", "Email", "Grupa", "Indeks"}
+    required_columns = {"Ime", "Prezime", "Email", "Grupa", "Indeks", "Asistent"}
     if not required_columns.issubset(df.columns):
         raise HTTPException(
             status_code=400,
@@ -142,6 +139,7 @@ def batch_users(file: UploadFile, db: Session):
             role_id=student_role.id,
             group_id=int(row["Grupa"]),
             index=row["Indeks"],
+            assigned_to_ta=row["Asistent"],
         )
         users.append(user)
 
@@ -157,36 +155,6 @@ def batch_users(file: UploadFile, db: Session):
     db.commit()
 
     logger.info(f"{len(users)} users imported successfully")
-
-
-def retrieve_submissions_for_specific_chapter(
-    db: Session,
-    user: User,
-    chapter_id: str,
-) -> list[SubmissionResponse]:
-    logger.info(
-        f"Retrieving submissions for the user {user.id} for the chapter {chapter_id}..."
-    )
-    submissions: list[Submission] = retrieve_by_user_and_chapter(
-        db, user.id, chapter_id
-    )
-    submission_responses = []
-    for submission in submissions:
-        submission_responses.append(
-            SubmissionResponse(
-                id=submission.id,
-                text=submission.text,
-                gd_file_id=submission.gd_file_id,
-                gd_file_link=submission.gd_file_link,
-                achieved_points_percentage=submission.achieved_points_percentage,
-                submission_mode=retrieve_submission_mode_by_id(
-                    db, submission.submission_mode_id
-                ).name,
-                submitted_at=submission.submitted_at,
-            )
-        )
-    logger.info("Successfully retrieved submissions")
-    return submission_responses
 
 
 def retrieve_evaluative_submissions_for_ta_students(db: Session, ta: User):
@@ -216,3 +184,8 @@ def grade_submission(
         achieved_points += grade.final_grade
     achieved_points_percentage = achieved_points / max_points
     update_submission_grade(db, submission_id, achieved_points_percentage)
+
+
+def retrieve_user_by_id(db: Session, id: int):
+    user: User = retrieve_user_by_id_db(db, id)
+    return user

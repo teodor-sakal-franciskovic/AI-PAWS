@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, and_
 
 from ..schemas.user import UserCreate
+from ..models.assignment import Assignment
 from ..models.user import User
 from ..models.submission import Submission
 from ..models.rule_feedback_submission import RuleFeedbackSubmission
@@ -18,6 +19,10 @@ def retrieve_by_email(db: Session, username: str):
     return db.query(User).filter(User.email == username).first()
 
 
+def retrieve_by_id(db: Session, id: int):
+    return db.query(User).filter(User.id == id).first()
+
+
 def retrieve_evaluative_submissions(
     session, ta_id: int, evaluative_submission_mode_id: int
 ):
@@ -31,6 +36,9 @@ def retrieve_evaluative_submissions(
             Submission.submitted_at,
             Submission.gd_file_link,
             Submission.achieved_points_percentage,
+            Assignment.name.label("assignment_name"),
+            Assignment.start_date.label("assignment_start_date"),
+            Assignment.end_date.label("assignment_end_date"),
             Rule.id.label("rule_id"),
             Rule.name.label("rule_name"),
             Rule.description.label("rule_description"),
@@ -43,6 +51,7 @@ def retrieve_evaluative_submissions(
         )
         .select_from(User)
         .join(Submission, Submission.user_id == User.id)
+        .join(Assignment, Assignment.id == Submission.assignment_id)
         .join(
             RuleFeedbackSubmission,
             RuleFeedbackSubmission.submission_id == Submission.id,
