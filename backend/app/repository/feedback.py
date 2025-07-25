@@ -21,3 +21,11 @@ def update_final_feedback_text(db: Session, id: int, new_comment: str):
     db.commit()
     db.refresh(feedback)
     return feedback
+
+
+def update_is_valid(db: Session, id: int, is_valid: bool):
+    feedback = retrieve_by_id(db, id)
+    feedback.is_valid = is_valid
+    db.commit()
+    db.refresh(feedback)
+    return feedback

@@ -39,6 +39,8 @@ def create_group(
     create_group(group, db)
 
     return JSONResponse(
-        status_code=200,
-        content=GenericResponse(message="Successfully created a new group.", data=None),
+        status_code=201,
+        content=GenericResponse(
+            message="Successfully created a new group.", data=None
+        ).model_dump(),
     )

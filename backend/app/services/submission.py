@@ -19,6 +19,7 @@ def save_submission(
     chapter_name: str,
     submission_mode_name: str,
     user_id: int,
+    assignment_id: int,
     graded: bool = False,
 ):
     chapter: Chapter = retrieve_chapter_by_name(db, chapter_name)
@@ -32,9 +33,9 @@ def save_submission(
         gd_file_id=file_id,
         gd_file_link=file_link,
         user_id=user_id,
-        chapter_id=chapter.id,
         submission_mode_id=submission_mode.id,
         graded=graded,
+        assignment_id=assignment_id,
     )
     db.add(submission)
     db.commit()

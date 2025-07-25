@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from ..dependencies.auth import get_current_active_user
+from ..dependencies.auth import get_current_active_user, require_role
 from ..dependencies.db import get_db
 from ..dependencies.llm import initialise_llm
 from ..dependencies.historical_profile import (
@@ -15,6 +15,7 @@ from ..dependencies.feedback import (
     get_retrieve_feedback,
     get_request_additional_interactive_feedback,
     get_update_feedback_with_additional_text,
+    get_invalidate_feedback,
 )
 
 from ..dependencies.historical_profile import get_insert_historical_profile_snapshot
@@ -24,6 +25,7 @@ from ..schemas.response import GenericResponse
 from ..schemas.feedback import InteractiveFeedbackResponse
 
 from ..models.user import User
+from ..models.role import Role
 from ..models.submission import Submission
 from ..models.historical_profile import HistoricalProfile
 from ..models.feedback import Feedback
@@ -36,7 +38,7 @@ router = APIRouter(
 
 
 @router.post("/{feedback_id}/additional", response_model=GenericResponse)
-def upload_chapter_interactive(
+def request_additional_feedback(
     feedback_id: int,
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
@@ -82,5 +84,22 @@ def upload_chapter_interactive(
         content=GenericResponse(
             message=f"Successfully provided additional feedback for the feedback with id {feedback_id}.",
             data=updated_feedback,
+        ).model_dump(),
+    )
+
+
+@router.put("/{feedback_id}/invalid", response_model=GenericResponse)
+def invalidate_feedback(
+    feedback_id: int,
+    role: Annotated[Role, Depends(require_role("Student"))],
+    db: Session = Depends(get_db),
+    invalidate_feedback=Depends(get_invalidate_feedback),
+):
+    invalidate_feedback(db, feedback_id)
+    return JSONResponse(
+        status_code=200,
+        content=GenericResponse(
+            message=f"Successfully invalidated feedback with id {feedback_id}.",
+            data=None,
         ).model_dump(),
     )

@@ -30,6 +30,7 @@ from ..repository.rule import (
 from ..repository.feedback import (
     retrieve_by_id as retrieve_feedback_by_id,
     update_with_additional_text,
+    update_is_valid,
 )
 from ..utils.feedback import (
     generate_initial_interactive_mode_feedbacks,
@@ -165,9 +166,7 @@ def request_evaluation(
     logger.info(
         f"Retrieving knowledge summarisation prompt template for user {user.id}..."
     )
-    knowledge_summarisation_prompt_template: PromptTemplate = retrieve_by_purpose(
-        db, "Knowledge Summarisation Evaluative"
-    )
+
     logger.info("Successfully retrieved knowledge summarisation prompt template")
 
     logger.info(f"Retrieving the latest historical profile for {user.id}...")
@@ -187,7 +186,7 @@ def request_evaluation(
     logger.info(f"Forming user prompt: user {user.id}")
     user_prompt = generate_user_prompt_for_initial_interactive_and_evaluative_mode(
         evaluative_prompt_template,
-        knowledge_summarisation_prompt_template,
+        None,
         rules,
         submission,
     )
@@ -275,3 +274,7 @@ def update_feedback_with_additional_context(
         additional_text=feedback.additional_text,
     )
     return feedback_response
+
+
+def invalidate_feedback(db: Session, feedback_id: int):
+    update_is_valid(db, feedback_id, False)

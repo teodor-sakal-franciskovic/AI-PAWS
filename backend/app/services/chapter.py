@@ -1,5 +1,4 @@
 import os
-import re
 import tempfile
 
 # https://pypi.org/project/pymupdf4llm/
@@ -20,7 +19,7 @@ from ..utils.chapter import (
 )
 from ..utils.logger import logger
 from ..models.chapter import Chapter
-from ..repository.chapter import retrieve_all
+from ..repository.chapter import retrieve_all, retrieve_by_id
 from ..schemas.chapter import ChapterResponse
 
 
@@ -77,3 +76,10 @@ def retrieve_chapters(db: Session):
     chapters: List[Chapter] = retrieve_all(db)
     logger.info("Successfully retrieved all chapters")
     return [ChapterResponse(id=chapter.id, name=chapter.name) for chapter in chapters]
+
+
+def retrieve_chapter_object_by_id(db: Session, chapter_id: int):
+    logger.info(f"Retrieving chapter with id {chapter_id}...")
+    chapter: Chapter = retrieve_by_id(db, chapter_id)
+    logger.info("Successfully retrieved the chapter")
+    return chapter

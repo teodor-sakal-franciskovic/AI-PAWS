@@ -10,6 +10,7 @@ def create_user_response(user: User, role: Role):
         surname=user.surname,
         is_active=user.is_active,
         role=role.name,
+        index=user.index,
     )
 
 
@@ -27,6 +28,9 @@ def group_submission_data(sql_user_submissions):
             submitted_at,
             gd_file_link,
             achieved_points_percentage,
+            assignment_name,
+            assignment_start_date,
+            assignment_end_date,
             rule_id,
             rule_name,
             rule_description,
@@ -53,6 +57,9 @@ def group_submission_data(sql_user_submissions):
                 "submitted_at": submitted_at,
                 "gd_file_link": gd_file_link,
                 "achieved_points_percentage": achieved_points_percentage,
+                "assignment_name": assignment_name,
+                "assignment_start_date": assignment_start_date,
+                "assignment_end_date": assignment_end_date,
                 "rules": [],
             }
             user_data["submissions"].append(submission_obj)

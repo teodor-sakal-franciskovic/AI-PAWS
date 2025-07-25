@@ -5,6 +5,7 @@ from ..models.chapter import Chapter
 from ..models.chapter_grading_aspect import ChapterGradingAspect
 from ..models.grading_aspect import GradingAspect
 from ..models.rule import Rule
+from ..models.feedback import Feedback
 
 
 def retrieve_rules_for_chapter(
@@ -34,3 +35,12 @@ def retrieve_rules_for_chapter(
 
 def retrieve_by_id(db: Session, id: int):
     return db.query(Rule).filter(Rule.id == id).first()
+
+
+def retrieve_rule_by_feedback_id(db: Session, feedback_id: int) -> Rule:
+    return (
+        db.query(Rule)
+        .join(Feedback, Feedback.rule_id == Rule.id)
+        .filter(Feedback.id == feedback_id)
+        .first()
+    )

@@ -31,6 +31,8 @@ from app.models.rule_feedback_submission import RuleFeedbackSubmission  # noqa
 from app.models.submission import Submission  # noqa
 from app.models.submission_mode import SubmissionMode  # noqa
 from app.models.user import User  # noqa
+from app.models.assignment import Assignment  # noqa
+from app.models.assignment_group import AssignmentGroup  # noqa
 
 # target_metadata = mymodel.Base.metadata
 target_metadata = [

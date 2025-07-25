@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # needed for Alembic migrations to work
 from .models.base import AcademicWritingSchema
-from .routers import auth, chapter, group, role, user, feedback
+from .routers import auth, chapter, group, role, user, feedback, assignment
 
 description = """
 
@@ -31,13 +31,24 @@ Endpoints associated with the student groups, such as their creation.
 ## Feedbacks
 
 Endpoints associated with the paper feedback, such as the additional interactive feedback.
+
+## Assignments
+
+Endpoints associated with the assignments, such as their creation.
+
+## TODOs:
+Open problems
+- GD Upload doesn't work after a certain amount of calls - should it be uploaded locally instead?
+- If there is a table, and below it there are multiple "headings" (either new chapter/subchapter), the one on the right gets noticed first and screws the logic up
+    - This can be potentially upgraded by using GPT for text extraction (PDF upload)
+Modify prompts (the one for the summarised knowledge + all of the rules should be in more detail)
 """
 
 app = FastAPI(
     title="AI-PAWS",
     description=description,
     summary="AI-Powered Academic Writing Support",
-    version="0.0.1",  # TODO: Correlate with semantic versioning/pushing to dockerhub
+    version="0.0.1",
     contact={
         "name": "Teodor Sakal Francišković",
         "email": "teodor.sakal_franciskovic@uns.ac.rs",
@@ -64,3 +75,4 @@ app.include_router(role.router)
 app.include_router(chapter.router)
 app.include_router(group.router)
 app.include_router(feedback.router)
+app.include_router(assignment.router)
