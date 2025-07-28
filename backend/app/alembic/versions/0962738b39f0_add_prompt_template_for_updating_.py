@@ -56,8 +56,9 @@ def upgrade() -> None:
         "('', "
         "'Nakon što si oformirao prethodno-spomenuti JSON vezan za dodatno objašnjenje, potrebno je da u taj JSON dodaš još jedno polje.\n"
         "To polje treba da ima ključ ```updated_knowledge``` i njegova vrednost treba da predstavlja ažurirano znanje studenta na osnovu:\n"
-        "1) njegovog prethodnog znanja što sam ti prosledio u system prompt-u i"
-        "2) informaciji da je zatražio dodatno pojašnjenje za neko pravilo.',"
+        "1) njegovog prethodnog znanja što sam ti prosledio u system prompt-u i "
+        "2) informaciji da je zatražio dodatno pojašnjenje za neko pravilo."
+        "Studentovo prethodno znanje treba da ima veći uticaj na celokupno ažurirano znanje u odnosu na informaciju o traženju dodatnog pojašnjenja.',"
         "'Prompt template used for the update of the summarised student knowledge in the additional interactive mode.',"
         "'Knowledge Summarisation Additional Interactive')"
     )

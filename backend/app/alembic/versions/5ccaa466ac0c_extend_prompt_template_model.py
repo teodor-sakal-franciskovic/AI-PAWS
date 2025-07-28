@@ -45,7 +45,7 @@ def upgrade() -> None:
         "U svojim odgovorima koristi ekavicu ili ijekavicu srpskog jezika, u zavisnosti od toga koji dijalekt uočiš u tekstu priloženog naučnog rada.\n"
         "Takođe, prilikom revidiranja, potrebno je da uzmeš u obzir i prethodno-uočene studentske šablone rada, koji su opisani ispod ove rečenice:\n\n{student_knowledge}', "
         "'Prvo ću ti priložiti sva pravila koja treba da budu ispoštovana, a zatim i tekst koji treba da ispraviš.\n"
-        "Tvoj odgovor treba da prikaže predloge ispravke i razloge predloga ispravki teksta za svako pravilo.\n"
+        "Tvoj odgovor treba da prikaže predloge ispravki, razloge predloga ispravki teksta za svako pravilo, kao i rečenice iz teksta zbog kojih smatraš da su ispravke potrebne.\n"
         "Ukoliko smatraš da je pravilo ispoštovano 90%, navedi da je ono ispoštovano umesto ispravke\n"
         "Za svako pravilo koje se nalazi ispod `Pravila`, tvoj odgovor treba da ima sledeći šablon i ništa van njega ne treba da postoji. Ponavljam, **moraš** mi vratiti odgovor po sledećim šablonima:\n\n"
         "(Ako si siguran da je ispravno manje od 90%)\n"
