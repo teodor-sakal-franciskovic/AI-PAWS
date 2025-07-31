@@ -13,13 +13,12 @@ from ..utils.logger import logger
 
 def save_submission(
     db: Session,
-    file_id: str,
-    file_link: str,
     extracted_text: str,
     chapter_name: str,
     submission_mode_name: str,
     user_id: int,
     assignment_id: int,
+    file_bytes,
     graded: bool = False,
 ):
     chapter: Chapter = retrieve_chapter_by_name(db, chapter_name)
@@ -30,12 +29,11 @@ def save_submission(
     logger.info(f"Submission mode for save submission: {submission_mode}")
     submission = Submission(
         text=extracted_text,
-        gd_file_id=file_id,
-        gd_file_link=file_link,
         user_id=user_id,
         submission_mode_id=submission_mode.id,
         graded=graded,
         assignment_id=assignment_id,
+        file_bytes=file_bytes,
     )
     db.add(submission)
     db.commit()

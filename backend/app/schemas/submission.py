@@ -18,8 +18,6 @@ class SubmissionResponse(BaseModel):
     id: int
     submitted_at: datetime
     text: str
-    gd_file_id: str
-    gd_file_link: str
     achieved_points_percentage: Any
     submission_mode: str
     rule_feedbacks: list[RuleFeedbackSchema]
