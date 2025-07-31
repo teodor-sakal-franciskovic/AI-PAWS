@@ -34,6 +34,7 @@ AI-Powered Academic Writing Support
 | GET   | `/previous`            | Retrieval of previously submitted assignments            | Student screen when taking a look at previously submitted assignments                          |
 | POST   | `/{assignment_id}/chapters/{chapter_id}/interactive`            | Upload of the currently-written research paper and retrieval of the received feedback            | Student screen when uploading a research paper as an assignment, after the upload, view of all of the received feedback                          |
 | POST   | `/{assignment_id}/chapters/{chapter_id}/evaluative`            | Upload of the currently-written research paper            | Student screen when uploading a research paper as an assignment; No feedback received immediately after the upload, TA has to confirm/edit it first.
+| GET   | `/{assignment_id}/submissions/files`            | Retrieval of pdfs submitted by students for a specific assignment            | TA will have an option to download the zip file with all of the submitted files when the evaluative assignment has finished. The zip file will contain a folder per TA, with each containing TAs' students' pdf files of research papers.      
 ### Body Examples
 #### `POST /`
 
@@ -104,8 +105,6 @@ A pdf file upload is expected
     "id": 101,
     "submitted_at": "2025-06-15T18:45:00Z",
     "text": "This is the submitted essay text...",
-    "gd_file_id": "file123abc",
-    "gd_file_link": "https://drive.google.com/file/d/file123abc/view",
     "achieved_points_percentage": 0.32,
     "submission_mode": "Evaluative mode",
     "rule_feedbacks": [
@@ -164,6 +163,11 @@ A pdf file upload is expected
     ...
   }
 ]
+```
+
+#### `GET /{assignment_id}/chapters/files`
+```
+A zip file with students' submitted pdf files.
 ```
 
 ## /auth

@@ -1,4 +1,8 @@
+import io
+import zipfile
+
 from sqlalchemy.orm import Session
+from fastapi.responses import StreamingResponse
 
 from ..models.assignment import Assignment
 from ..models.assignment_group import AssignmentGroup
@@ -18,9 +22,15 @@ from ..utils.logger import logger
 from ..repository.assignment import (
     retrieve_active_assignments_for_group,
     retrieve_past_submissions_with_assignments_for_user,
+    retrieve_by_id as retrieve_assignment_by_id,
 )
-from ..repository.submission import retrieve_rule_feedbacks_for_submission
-from ..repository.submission_mode import retrieve_by_id
+from ..repository.submission import (
+    retrieve_rule_feedbacks_for_submission,
+    retrieve_by_assignment_id,
+)
+from ..repository.submission_mode import (
+    retrieve_by_id as retrieve_submission_mode_by_id,
+)
 
 
 def create_assignment(db: Session, body: AssignmentCreate):
@@ -70,10 +80,10 @@ def retrieve_previous_assignments_for_student(
         submission_response = SubmissionResponse(
             id=submission.id,
             text=submission.text,
-            gd_file_id=submission.gd_file_id,
-            gd_file_link=submission.gd_file_link,
             achieved_points_percentage=submission.achieved_points_percentage,
-            submission_mode=retrieve_by_id(db, submission.submission_mode_id).name,
+            submission_mode=retrieve_submission_mode_by_id(
+                db, submission.submission_mode_id
+            ).name,
             submitted_at=submission.submitted_at,
             rule_feedbacks=rule_feedbacks,
         )
@@ -87,3 +97,41 @@ def retrieve_previous_assignments_for_student(
         finished_assignment_responses.append(finished_assignment_response)
     logger.info("Successfully retrieved finished assignments")
     return finished_assignment_responses
+
+
+def retrieve_submission_files_for_assignment(db: Session, assignment_id: int):
+    logger.info(f"Retrieving assignment for id {assignment_id}...")
+    assignment: Assignment = retrieve_assignment_by_id(db, assignment_id)
+    logger.info(f"Successfully retrieved assignment: {assignment.name}")
+
+    logger.info("Retrieving submissions with students and TAs...")
+    submissions_with_student_and_ta_info = retrieve_by_assignment_id(db, assignment_id)
+    logger.info(
+        f"Successfully retrieved submissions with students and TAs: {submissions_with_student_and_ta_info}"
+    )
+
+    zip_stream = io.BytesIO()
+    with zipfile.ZipFile(zip_stream, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for submission, student, ta in submissions_with_student_and_ta_info:
+            logger.info(f"Submission: {submission.id}")
+            logger.info(f"Student: {student.index}")
+            logger.info(f"TA: {ta.name}")
+            if not submission.file_bytes:
+                continue
+
+            ta_folder = f"{ta.name}_{ta.surname}" if ta else "Unassigned"
+
+            student_filename = f"{student.index}_{student.name}_{student.surname}.pdf"
+            full_path = f"{ta_folder}/{student_filename}"
+
+            zf.writestr(full_path, submission.file_bytes)
+
+    zip_stream.seek(0)
+
+    return StreamingResponse(
+        zip_stream,
+        media_type="application/x-zip-compressed",
+        headers={
+            "Content-Disposition": f'attachment; filename="{assignment.name}.zip"'
+        },
+    )

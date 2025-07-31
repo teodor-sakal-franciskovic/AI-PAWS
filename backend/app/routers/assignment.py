@@ -10,6 +10,7 @@ from ..dependencies.assignment import (
     get_create_assignment,
     get_retrieve_active_assignments_for_student,
     get_retrieve_previous_assignments_for_student,
+    get_retrieve_submission_files_for_assignment,
 )
 from ..dependencies.auth import get_current_active_user, require_role
 from ..dependencies.chapter import (
@@ -24,7 +25,6 @@ from ..dependencies.feedback import (
     get_request_evaluation,
     get_create_feedback_objects_for_evaluative_mode,
 )
-from ..dependencies.google_drive import get_drive_service, get_upload_pdf
 from ..dependencies.llm import initialise_llm
 from ..dependencies.submission import get_save_submission
 from ..dependencies.historical_profile import get_insert_historical_profile_snapshot
@@ -117,6 +117,18 @@ def retrieve_previous_assignments(
     )
 
 
+@router.get("/{assignment_id}/submissions/files")
+def retrieve_submission_files(
+    assignment_id: int,
+    role: Annotated[Role, Depends(require_role("TA"))],
+    db: Session = Depends(get_db),
+    retrieve_submission_files_for_assignment=Depends(
+        get_retrieve_submission_files_for_assignment
+    ),
+):
+    return retrieve_submission_files_for_assignment(db, assignment_id)
+
+
 @router.post(
     "/{assignment_id}/chapters/{chapter_id}/interactive",
     response_model=GenericResponse,
@@ -127,8 +139,6 @@ def upload_chapter_interactive(
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
     llm=Depends(initialise_llm),
-    drive_service=Depends(get_drive_service),
-    upload_pdf_to_drive=Depends(get_upload_pdf),
     extract_pdf_to_markdown=Depends(get_extract_pdf_to_markdown),
     extract_chapter_text=Depends(get_extract_chapter_text),
     save_submission=Depends(get_save_submission),
@@ -145,22 +155,16 @@ def upload_chapter_interactive(
     chapter: Chapter = retrieve_chapter_by_id(db, chapter_id)
     chapter_name: str = chapter.name.lower()
     file_bytes = anyio.run(file.read)
-    # file_id, file_link = upload_pdf_to_drive(
-    #    drive_service, file_bytes, current_user, chapter_name, "interaktivni"
-    # )
-    file_id = "random_id"
-    file_link = "random_link"
     markdown_text = extract_pdf_to_markdown(file_bytes)
     extracted_text = extract_chapter_text(markdown_text, chapter_name, db)
     submission: Submission = save_submission(
         db,
-        file_id,
-        file_link,
         extracted_text,
         chapter_name,
         "Interaktivni mod",
         current_user.id,
         assignment_id,
+        file_bytes,
     )
     llm_feedback_response: LLMFeedbackResponse = request_initial_interactive_feedback(
         db, llm, submission, current_user, chapter_name
@@ -195,8 +199,6 @@ def upload_chapter_evaluative(
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
     llm=Depends(initialise_llm),
-    drive_service=Depends(get_drive_service),
-    upload_pdf_to_drive=Depends(get_upload_pdf),
     extract_pdf_to_markdown=Depends(get_extract_pdf_to_markdown),
     extract_chapter_text=Depends(get_extract_chapter_text),
     save_submission=Depends(get_save_submission),
@@ -210,22 +212,16 @@ def upload_chapter_evaluative(
     chapter: Chapter = retrieve_chapter_by_id(db, chapter_id)
     chapter_name: str = chapter.name.lower()
     file_bytes = anyio.run(file.read)
-    # file_id, file_link = upload_pdf_to_drive(
-    #    drive_service, file_bytes, current_user, chapter_name, "evalucioni"
-    # )
-    file_id = "random_id"
-    file_link = "random_link"
     markdown_text = extract_pdf_to_markdown(file_bytes)
     extracted_text = extract_chapter_text(markdown_text, chapter_name, db)
     submission: Submission = save_submission(
         db,
-        file_id,
-        file_link,
         extracted_text,
         chapter_name,
         "Evalucioni mod",
         current_user.id,
         assignment_id,
+        file_bytes,
     )
     llm_evaluation_response: LLMEvaluationResponse = request_evaluation(
         db, llm, submission, current_user, chapter_name

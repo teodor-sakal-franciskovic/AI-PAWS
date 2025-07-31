@@ -38,7 +38,6 @@ Endpoints associated with the assignments, such as their creation.
 
 ## TODOs:
 Open problems
-- GD Upload doesn't work after a certain amount of calls - should it be uploaded locally instead?
 - If there is a table, and below it there are multiple "headings" (either new chapter/subchapter), the one on the right gets noticed first and screws the logic up
     - This can be potentially upgraded by using GPT for text extraction (PDF upload)
 Modify prompts (the one for the summarised knowledge + all of the rules should be in more detail)

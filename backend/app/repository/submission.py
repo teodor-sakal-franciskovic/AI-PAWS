@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy import case
 
 from ..models.submission import Submission
@@ -6,6 +6,7 @@ from ..models.feedback import Feedback
 from ..models.fulfillment import Fulfillment
 from ..models.rule import Rule
 from ..models.rule_feedback_submission import RuleFeedbackSubmission
+from ..models.user import User
 
 from ..schemas.submission import RuleFeedbackSchema
 
@@ -28,6 +29,19 @@ def update_submission_grade(db: Session, id: int, percentage: float):
     submission.graded = True
     db.commit()
     return submission
+
+
+def retrieve_by_assignment_id(db: Session, assignment_id: int):
+    Student = aliased(User)
+    TA = aliased(User)
+
+    return (
+        db.query(Submission, Student, TA)
+        .join(Student, Submission.user_id == Student.id)
+        .outerjoin(TA, Student.assigned_to_ta == TA.id)
+        .filter(Submission.assignment_id == assignment_id)
+        .all()
+    )
 
 
 def retrieve_rule_feedbacks_for_submission(

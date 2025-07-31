@@ -34,3 +34,7 @@ def retrieve_past_submissions_with_assignments_for_user(db: Session, user_id: in
         )
         .all()
     )
+
+
+def retrieve_by_id(db: Session, id: int):
+    return db.query(Assignment).filter(Assignment.id == id).first()
