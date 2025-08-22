@@ -29,7 +29,7 @@ from ..schemas.user import (
     UpdatedUserInfo,
     UpdatedUserPassword,
     UserCreate,
-    EvaluativeUserSubmissionResponse,
+    EvaluativeUsersSubmissionResponse,
 )
 from ..schemas.submission import (
     TAEvaluationGradesRequest,
@@ -166,7 +166,7 @@ def retrieve_evaluative_submissions_for_ta_students(db: Session, ta: User):
         db, ta.id, evaluative_submission_mode.id
     )
 
-    evaluative_user_submission_response: EvaluativeUserSubmissionResponse = (
+    evaluative_user_submission_response: EvaluativeUsersSubmissionResponse = (
         group_submission_data(submissions)
     )
     return evaluative_user_submission_response

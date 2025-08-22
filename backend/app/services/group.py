@@ -1,10 +1,12 @@
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from typing import List
 
 from ..models.group import Group
-from ..schemas.group import GroupCreate
+from ..schemas.group import GroupCreate, GroupResponse
 from ..utils.logger import logger
+from ..repository.group import retrieve_all_valid
 
 
 def create_group(group: GroupCreate, db: Session):
@@ -44,3 +46,16 @@ def create_group(group: GroupCreate, db: Session):
             detail="Something went wrong while storing the group to the database.",
         )
     logger.info(f"Successfully created the group: {db_group}")
+
+
+def retrieve_active_groups(db: Session):
+    groups: List[Group] = retrieve_all_valid(db)
+    return [
+        GroupResponse(
+            id=group.id,
+            name=group.name,
+            valid_from=group.valid_from,
+            valid_until=group.valid_until,
+        )
+        for group in groups
+    ]

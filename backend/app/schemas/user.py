@@ -31,9 +31,13 @@ class UpdatedUserPassword(BaseModel):
     confirmed_password: str
 
 
-class EvaluativeUserSubmissionResponse(BaseModel):
+class EvaluativeUserSubmissionSchema(BaseModel):
     user_id: int
     user_index: str
     name: str
     surname: str
     submissions: List[EvaluativeSubmissionSchema]
+
+
+class EvaluativeUsersSubmissionResponse(BaseModel):
+    users_with_submissions: List[EvaluativeUserSubmissionSchema]

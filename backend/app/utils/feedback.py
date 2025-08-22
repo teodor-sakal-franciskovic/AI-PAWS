@@ -140,6 +140,7 @@ def create_interactive_mode_feedbacks_response(
                 rule_name=rule.name,
                 rule_description=rule.description,
                 additional_text=feedback.additional_text,
+                is_valid=feedback.is_valid,
             )
         )
     return feedback_responses

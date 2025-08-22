@@ -42,7 +42,7 @@ from ..schemas.user import (
     UpdatedUserPassword,
     UserCreate,
     UserResponse,
-    EvaluativeUserSubmissionResponse,
+    EvaluativeUsersSubmissionResponse,
 )
 
 router = APIRouter(
@@ -180,7 +180,7 @@ def retrieve_my_students_evaluative_submissions(
         get_retrieve_evaluative_submissions_for_ta_students
     ),
 ):
-    evaluative_submissions: EvaluativeUserSubmissionResponse = (
+    evaluative_submissions: EvaluativeUsersSubmissionResponse = (
         retrieve_evaluative_submissions_for_ta_students(db, current_user)
     )
     return JSONResponse(

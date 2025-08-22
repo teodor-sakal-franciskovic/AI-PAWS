@@ -10,6 +10,7 @@ class InteractiveFeedbackResponse(BaseModel):
     rule_name: str
     rule_description: str
     additional_text: str
+    is_valid: bool
 
 
 class EvaluativeFeedbackResponse(BaseModel):

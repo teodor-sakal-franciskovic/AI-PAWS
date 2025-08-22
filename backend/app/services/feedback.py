@@ -272,6 +272,7 @@ def update_feedback_with_additional_context(
         rule_name=rule.name,
         rule_description=rule.description,
         additional_text=feedback.additional_text,
+        is_valid=feedback.is_valid,
     )
     return feedback_response
 

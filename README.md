@@ -105,7 +105,7 @@ A pdf file upload is expected
     "id": 101,
     "submitted_at": "2025-06-15T18:45:00Z",
     "text": "This is the submitted essay text...",
-    "achieved_points_percentage": 0.32,
+    "achieved_points_percentage": 32,
     "submission_mode": "Evaluative mode",
     "rule_feedbacks": [
       {
@@ -142,7 +142,8 @@ A pdf file upload is expected
   "initially_fulfilled": true,
   "rule_name": "InputEdgeValidation",
   "rule_description": "Checks whether edge cases in user inputs are handled properly.",
-  "additional_text": ""
+  "additional_text": "",
+  "is_valid": true,
   },
   {
     ...
@@ -221,7 +222,8 @@ fetch("http://localhost:8080/auth/login", {
   "initially_fulfilled": true,
   "rule_name": "InputEdgeValidation",
   "rule_description": "Checks whether edge cases in user inputs are handled properly.",
-  "additional_text": "Consider enhancing the regex for better email validation coverage."
+  "additional_text": "Consider enhancing the regex for better email validation coverage.",
+  "is_valid": true
 }
 ```
 #### `PUT /{feedback_id}/invalidate`
@@ -233,6 +235,8 @@ data part is None, only the message gets returned.
 | Method | Path                      | Description                                   | FE Usage                                 |
 |--------|---------------------------|-----------------------------------------------|----------------------------------------------|
 | POST    | `/`            | Creation of a new group           | TA screen for creating student groups for a specific semester                            |
+| GET    | `/active`            | Retrieval of active groups           | Used for the TA assignment creation                            |
+ 
 ### Body Examples
 #### `POST /`
 ```json
@@ -247,6 +251,24 @@ data part is None, only the message gets returned.
 ```
 data part is None, only the message gets returned.
 ```
+#### `GET /active`
+```json
+[
+    {
+      "id": 1,
+      "name": "G_1_2025",
+      "valid_from": "2025-01-01T00:00:00",
+      "valid_until": "2025-12-31T23:59:59"
+    },
+    {
+      "id": 3,
+      "name": "G_1_2024-6",
+      "valid_from": "2024-01-01T00:00:00",
+      "valid_until": "2026-12-31T23:59:59"
+    }
+  ]
+```
+
 ## /roles
 ### Brief Summary
 | Method | Path                      | Description                                   | FE Usage                                 |
@@ -266,7 +288,54 @@ data part is None, only the message gets returned.
   }
 ]
 ```
-
+## /submission-modes
+### Brief Summary
+| Method | Path                      | Description                                   | FE Usage                                 |
+|--------|---------------------------|-----------------------------------------------|----------------------------------------------|
+| GET    | `/`            | Retrieval of the present submission modes in the system            | Used for the TA assignment creation                            |
+### Return Value Examples
+#### `GET /`
+```json
+ [
+    {
+      "id": 1,
+      "name": "Interaktivni mod",
+      "description": "Mod u kojem studenti dobijaju povratne informacije o poglavlju koje su priložili."
+    },
+    {
+      "id": 2,
+      "name": "Evalucioni mod",
+      "description": "Mod u kojem studenti dobijaju poene (i razloge zašto su ti poeni dodeljeni) za poglavlje koje su priložili."
+    }
+  ]
+```
+## /chapters
+### Brief Summary
+| Method | Path                      | Description                                   | FE Usage                                 |
+|--------|---------------------------|-----------------------------------------------|----------------------------------------------|
+| GET    | `/`            | Retrieval of the present chapters in the system            | Used for the TA assignment creation                            |
+### Return Value Examples
+#### `GET /`
+```json
+[
+    {
+      "id": 1,
+      "name": "Problem"
+    },
+    {
+      "id": 2,
+      "name": "Teorijske osnove"
+    },
+    {
+      "id": 3,
+      "name": "Rešenje"
+    },
+    {
+      "id": 4,
+      "name": "Rezultati"
+    }
+  ]
+```
 ## /users
 ### Brief Summary
 | Method | Path                      | Description                                   | FE Usage                                 |
@@ -307,6 +376,24 @@ A csv file is expected, with the following header columns:
 - Grupa,
 - Indeks,
 - Asistent.
+
+```
+
+#### ```PUT /submission/{submission_id}/grade```
+```json
+{
+  "evaluation_grades": [
+    {
+      "feedback_id": 102,
+      "final_grade": 2,
+      "fulfillment_id": 53,
+      "final_feedback": "All good"
+    },
+    {
+      ...
+    }
+  ]
+}
 ```
 
 ### Return Value Examples
@@ -355,52 +442,58 @@ data part is None, only the message gets returned.
 #### `GET /my-students/submissions/evaluative`
 ```json
 {
-  "user_id": 101,
-  "user_index": "SV-1-2025",
-  "name": "Name",
-  "surname": "Surname",
-  "submissions": [
+  "users_with_submissions": [
     {
-      "submission_id": 501,
-      "submitted_at": "2025-07-20T14:30:00",
-      "gd_file_link": "https://drive.google.com/file/d/xyz123/view",
-      "assignment_name": "Literature Review",
-      "assignment_start_date": "2025-07-01T08:00:00",
-      "assignment_end_date": "2025-07-15T23:59:00",
-      "achieved_points_percentage": 87.5,
-      "rules": [
+      "user_id": 101,
+      "user_index": "SV-1-2025",
+      "name": "Name",
+      "surname": "Surname",
+      "submissions": [
         {
-          "rule_id": 201,
-          "name": "Clarity",
-          "description": "Writing should be clear and precise.",
-          "feedback": {
-            "feedback_id": 301,
-            "feedback_text": "Some sentences could be rephrased for clarity.",
-            "final_feedback_text": "Improved clarity after revision."
-          },
-          "fulfillment": {
-            "fulfillment_id": 401,
-            "initial_fulfillment_value": 0,
-            "final_fulfillment_value": 1
-          }
-        },
-        {
-          "rule_id": 202,
-          "name": "Structure",
-          "description": "Proper organisation of paragraphs.",
-          "feedback": {
-            "feedback_id": 302,
-            "feedback_text": "Paragraphs are well-structured overall.",
-            "final_feedback_text": "No further comments."
-          },
-          "fulfillment": {
-            "fulfillment_id": 402,
-            "initial_fulfillment_value": 2,
-            "final_fulfillment_value": 2
-          }
+          "submission_id": 501,
+          "submitted_at": "2025-07-20T14:30:00",
+          "assignment_name": "Literature Review",
+          "assignment_start_date": "2025-07-01T08:00:00",
+          "assignment_end_date": "2025-07-15T23:59:00",
+          "achieved_points_percentage": 87.5,
+          "rules": [
+            {
+              "rule_id": 201,
+              "name": "Clarity",
+              "description": "Writing should be clear and precise.",
+              "feedback": {
+                "feedback_id": 301,
+                "feedback_text": "Some sentences could be rephrased for clarity.",
+                "final_feedback_text": "Improved clarity after revision."
+              },
+              "fulfillment": {
+                "fulfillment_id": 401,
+                "initial_fulfillment_value": 0,
+                "final_fulfillment_value": 1
+              }
+            },
+            {
+              "rule_id": 202,
+              "name": "Structure",
+              "description": "Proper organisation of paragraphs.",
+              "feedback": {
+                "feedback_id": 302,
+                "feedback_text": "Paragraphs are well-structured overall.",
+                "final_feedback_text": "No further comments."
+              },
+              "fulfillment": {
+                "fulfillment_id": 402,
+                "initial_fulfillment_value": 2,
+                "final_fulfillment_value": 2
+              }
+            }
+          ]
         }
       ]
-    }
+    },
+    {
+      ...
+    },
   ]
 }
 ```

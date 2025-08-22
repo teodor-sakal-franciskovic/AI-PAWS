@@ -1,6 +1,11 @@
+from typing import List
 from ..models.role import Role
 from ..models.user import User
-from ..schemas.user import UserResponse, EvaluativeUserSubmissionResponse
+from ..schemas.user import (
+    UserResponse,
+    EvaluativeUsersSubmissionResponse,
+    EvaluativeUserSubmissionSchema,
+)
 
 
 def create_user_response(user: User, role: Role):
@@ -14,9 +19,8 @@ def create_user_response(user: User, role: Role):
     )
 
 
-def group_submission_data(sql_user_submissions):
-    submission_map = {}
-    user_data = None
+def group_submission_data(sql_user_submissions) -> EvaluativeUsersSubmissionResponse:
+    users_map = {}  # user_id -> {"user": {...}, "submissions_map": {submission_id: {...}}}
 
     for row in sql_user_submissions:
         (
@@ -26,7 +30,6 @@ def group_submission_data(sql_user_submissions):
             user_surname,
             submission_id,
             submitted_at,
-            gd_file_link,
             achieved_points_percentage,
             assignment_name,
             assignment_start_date,
@@ -42,30 +45,35 @@ def group_submission_data(sql_user_submissions):
             final_fulfillment_value,
         ) = row
 
-        if user_data is None:
-            user_data = {
-                "user_id": user_id,
-                "user_index": user_index,
-                "name": user_name,
-                "surname": user_surname,
-                "submissions": [],
+        if user_id not in users_map:
+            users_map[user_id] = {
+                "user": {
+                    "user_id": user_id,
+                    "user_index": user_index,
+                    "name": user_name,
+                    "surname": user_surname,
+                    "submissions": [],
+                },
+                "submissions_map": {},
             }
 
-        if submission_id not in submission_map:
+        user_entry = users_map[user_id]
+        submissions_map = user_entry["submissions_map"]
+
+        if submission_id not in submissions_map:
             submission_obj = {
                 "submission_id": submission_id,
                 "submitted_at": submitted_at,
-                "gd_file_link": gd_file_link,
                 "achieved_points_percentage": achieved_points_percentage,
                 "assignment_name": assignment_name,
                 "assignment_start_date": assignment_start_date,
                 "assignment_end_date": assignment_end_date,
                 "rules": [],
             }
-            user_data["submissions"].append(submission_obj)
-            submission_map[submission_id] = submission_obj
+            user_entry["user"]["submissions"].append(submission_obj)
+            submissions_map[submission_id] = submission_obj
 
-        submission_map[submission_id]["rules"].append(
+        submissions_map[submission_id]["rules"].append(
             {
                 "rule_id": rule_id,
                 "name": rule_name,
@@ -75,7 +83,9 @@ def group_submission_data(sql_user_submissions):
                     "feedback_text": feedback_text,
                     "final_feedback_text": final_feedback_text,
                 },
-                "fulfillment": {
+                "fulfillment": None
+                if fulfillment_id is None
+                else {
                     "fulfillment_id": fulfillment_id,
                     "initial_fulfillment_value": initial_fulfillment_value,
                     "final_fulfillment_value": final_fulfillment_value,
@@ -83,4 +93,8 @@ def group_submission_data(sql_user_submissions):
             }
         )
 
-    return EvaluativeUserSubmissionResponse(**user_data)
+    user_list_dicts = [entry["user"] for entry in users_map.values()]
+    user_models: List[EvaluativeUserSubmissionSchema] = [
+        EvaluativeUserSubmissionSchema(**u) for u in user_list_dicts
+    ]
+    return EvaluativeUsersSubmissionResponse(users_with_submissions=user_models)
