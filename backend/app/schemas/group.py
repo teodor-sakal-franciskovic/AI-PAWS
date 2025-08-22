@@ -14,3 +14,10 @@ class GroupCreate(BaseModel):
             f"valid_from='{self.valid_from.strftime('%Y-%m-%d %H:%M:%S')}', "
             f"valid_until='{self.valid_until.strftime('%Y-%m-%d %H:%M:%S')}')"
         )
+
+
+class GroupResponse(BaseModel):
+    id: int
+    name: str
+    valid_from: datetime
+    valid_until: datetime

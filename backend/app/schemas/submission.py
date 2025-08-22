@@ -26,7 +26,6 @@ class SubmissionResponse(BaseModel):
 class EvaluativeSubmissionSchema(BaseModel):
     submission_id: int
     submitted_at: datetime
-    gd_file_link: str
     assignment_name: str
     assignment_start_date: datetime
     assignment_end_date: datetime

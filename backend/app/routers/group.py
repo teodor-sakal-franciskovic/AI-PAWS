@@ -1,4 +1,6 @@
-from typing import Annotated
+import json
+
+from typing import Annotated, List
 
 from fastapi import APIRouter, Body, Depends, status
 from fastapi.responses import JSONResponse
@@ -6,9 +8,9 @@ from sqlalchemy.orm import Session
 
 from ..dependencies.auth import require_role
 from ..dependencies.db import get_db
-from ..dependencies.group import get_create_group
+from ..dependencies.group import get_create_group, get_retrieve_active_groups
 from ..models.role import Role
-from ..schemas.group import GroupCreate
+from ..schemas.group import GroupCreate, GroupResponse
 from ..schemas.response import GenericResponse
 
 router = APIRouter(
@@ -43,4 +45,20 @@ def create_group(
         content=GenericResponse(
             message="Successfully created a new group.", data=None
         ).model_dump(),
+    )
+
+
+@router.get("/", tags=["groups"], response_model=GenericResponse)
+def retrieve_active_groups(
+    db: Session = Depends(get_db),
+    retrieve_active_groups=Depends(get_retrieve_active_groups),
+) -> GenericResponse:
+    active_groups: List[GroupResponse] = retrieve_active_groups(db)
+    return JSONResponse(
+        status_code=200,
+        content=json.loads(
+            GenericResponse(
+                message="Successfully retrieved active groups", data=active_groups
+            ).model_dump_json(),
+        ),
     )

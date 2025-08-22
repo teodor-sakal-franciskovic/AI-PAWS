@@ -3,7 +3,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # needed for Alembic migrations to work
 from .models.base import AcademicWritingSchema
-from .routers import auth, chapter, group, role, user, feedback, assignment
+from .routers import (
+    auth,
+    chapter,
+    group,
+    role,
+    user,
+    feedback,
+    assignment,
+    submission_mode,
+)
 
 description = """
 
@@ -22,7 +31,7 @@ Endpoints associated with the user roles, such as their retrieval.
 
 ## Chapters
 
-Endpoints associated with the written chapters, such as the interactive and evaluation mode that analyses the chapters.
+Endpoints associated with the written chapters, such as their retrieval.
 
 ## Groups
 
@@ -35,6 +44,10 @@ Endpoints associated with the paper feedback, such as the additional interactive
 ## Assignments
 
 Endpoints associated with the assignments, such as their creation.
+
+## Submission modes
+
+Endpoints associated with the submission modes, such as their retrieval.
 
 ## TODOs:
 Open problems
@@ -75,3 +88,4 @@ app.include_router(chapter.router)
 app.include_router(group.router)
 app.include_router(feedback.router)
 app.include_router(assignment.router)
+app.include_router(submission_mode.router)
