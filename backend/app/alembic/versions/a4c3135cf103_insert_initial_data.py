@@ -24,8 +24,8 @@ def upgrade() -> None:
     )
     op.execute(
         "INSERT INTO academic_writing_schema.submission_mode (id, name, description) "
-        "VALUES (1, 'Interaktivni mod', 'Mod u kojem studenti dobijaju povratne informacije o poglavlju koje su priložili.'),"
-        " (2, 'Evalucioni mod', 'Mod u kojem studenti dobijaju poene (i razloge zašto su ti poeni dodeljeni) za poglavlje koje su priložili.')"
+        "VALUES (1, 'Interactive mode', 'Mode in which students receive information about the quality of their submitted chapters.'),"
+        " (2, 'Evaluative mode', 'Mode in which students receive grades (and reasons behind them) for their submitted chapters.')"
     )
     op.execute(
         "INSERT INTO academic_writing_schema.chapter (id, name) VALUES (1, 'Problem'), (2, 'Teorijske osnove'), (3, 'Rešenje'), (4, 'Rezultati')"
