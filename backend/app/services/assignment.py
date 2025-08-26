@@ -12,7 +12,7 @@ from ..models.submission import Submission
 from ..schemas.assignment import (
     AssignmentCreate,
     AssignmentResponse,
-    FinishedAssignmentResponse,
+    SubmittedSubmissionForAssignmentResponse,
 )
 from ..schemas.submission import SubmissionResponse
 
@@ -23,6 +23,7 @@ from ..repository.assignment import (
     retrieve_active_assignments_for_group,
     retrieve_past_submissions_with_assignments_for_user,
     retrieve_by_id as retrieve_assignment_by_id,
+    retrieve_all,
 )
 from ..repository.submission import (
     retrieve_rule_feedbacks_for_submission,
@@ -54,22 +55,51 @@ def create_assignment(db: Session, body: AssignmentCreate):
     return assignment_response
 
 
-def retrieve_active_assignments_for_student(db: Session, user: User):
-    logger.info(f"Retrieving active assignments for user {user.id}")
-    assignments: list[Assignment] = retrieve_active_assignments_for_group(
-        db, user.group_id
-    )
-    logger.info("Successfully retrieved active assignments")
-    assignment_responses: list[AssignmentResponse] = [
+def retrieve_assignments(db: Session):
+    logger.info("Retrieving all assignments...")
+    assignments: list[Assignment] = retrieve_all(db)
+    assignments_response: list[AssignmentResponse] = [
         create_assignment_response(db, assignment) for assignment in assignments
     ]
-    return assignment_responses
+    return assignments_response
+
+
+def retrieve_active_assignments_for_student(db: Session, user: User):
+    logger.info(f"Retrieving active assignments for user {user.id}")
+    submissions_with_assignments: list[Submission, Assignment] = (
+        retrieve_active_assignments_for_group(db, user.group_id)
+    )
+    active_assignment_responses = []
+    for submission, assignment in submissions_with_assignments:
+        rule_feedbacks = retrieve_rule_feedbacks_for_submission(db, submission.id)
+        logger.info(f"Rule feedbacks {rule_feedbacks} for submission {submission.id}")
+        submission_response = SubmissionResponse(
+            id=submission.id,
+            text=submission.text,
+            achieved_points_percentage=submission.achieved_points_percentage,
+            submission_mode=retrieve_submission_mode_by_id(
+                db, submission.submission_mode_id
+            ).name,
+            submitted_at=submission.submitted_at,
+            status=submission.status,
+            rule_feedbacks=rule_feedbacks,
+        )
+        finished_assignment_response = SubmittedSubmissionForAssignmentResponse(
+            id=assignment.id,
+            name=assignment.name,
+            start_date=assignment.start_date,
+            end_date=assignment.end_date,
+            submission=submission_response,
+        )
+        active_assignment_responses.append(finished_assignment_response)
+    logger.info("Successfully retrieved active assignments")
+    return active_assignment_responses
 
 
 def retrieve_previous_assignments_for_student(
     db: Session,
     user: User,
-) -> list[FinishedAssignmentResponse]:
+) -> list[SubmittedSubmissionForAssignmentResponse]:
     logger.info(f"Retrieving finished assignments for the user {user.id}")
     submissions_with_assignments: list[Submission, Assignment] = (
         retrieve_past_submissions_with_assignments_for_user(db, user.id)
@@ -85,9 +115,10 @@ def retrieve_previous_assignments_for_student(
                 db, submission.submission_mode_id
             ).name,
             submitted_at=submission.submitted_at,
+            status=submission.status,
             rule_feedbacks=rule_feedbacks,
         )
-        finished_assignment_response = FinishedAssignmentResponse(
+        finished_assignment_response = SubmittedSubmissionForAssignmentResponse(
             id=assignment.id,
             name=assignment.name,
             start_date=assignment.start_date,

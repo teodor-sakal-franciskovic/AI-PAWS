@@ -19,7 +19,7 @@ from ..repository.user import (
     retrieve_evaluative_submissions,
     retrieve_by_id as retrieve_user_by_id_db,
 )
-from ..repository.submission import update_submission_grade
+from ..repository.submission import update_grade
 from ..repository.submission_mode import (
     retrieve_by_name as retrieve_submission_mode_by_name,
 )
@@ -159,7 +159,7 @@ def batch_users(file: UploadFile, db: Session):
 
 def retrieve_evaluative_submissions_for_ta_students(db: Session, ta: User):
     evaluative_submission_mode: Submission = retrieve_submission_mode_by_name(
-        db, "Evalucioni mod"
+        db, "Evaluative mode"
     )
 
     submissions = retrieve_evaluative_submissions(
@@ -183,7 +183,7 @@ def grade_submission(
         update_final_fulfillment_value(db, grade.fulfillment_id, grade.final_grade)
         achieved_points += grade.final_grade
     achieved_points_percentage = achieved_points / max_points
-    update_submission_grade(db, submission_id, achieved_points_percentage)
+    update_grade(db, submission_id, achieved_points_percentage)
 
 
 def retrieve_user_by_id(db: Session, id: int):

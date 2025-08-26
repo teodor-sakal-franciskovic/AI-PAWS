@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy import case
 
-from ..models.submission import Submission
+from ..models.submission import Submission, SubmissionStatus
 from ..models.feedback import Feedback
 from ..models.fulfillment import Fulfillment
 from ..models.rule import Rule
@@ -23,10 +23,17 @@ def retrieve_by_user_and_chapter(db: Session, user_id: int, chapter_id: int):
     )
 
 
-def update_submission_grade(db: Session, id: int, percentage: float):
+def update_grade(db: Session, id: int, percentage: float):
     submission = db.query(Submission).filter(Submission.id == id).first()
     submission.achieved_points_percentage = percentage
     submission.graded = True
+    db.commit()
+    return submission
+
+
+def update_status(db: Session, id: int, status: SubmissionStatus):
+    submission = db.query(Submission).filter(Submission.id == id).first()
+    submission.status = status
     db.commit()
     return submission
 
@@ -54,7 +61,7 @@ def retrieve_rule_feedbacks_for_submission(
             Rule.description.label("rule_description"),
             case(
                 (
-                    Feedback.final_feedback_text is not None,
+                    Feedback.final_feedback_text.isnot(None),
                     Feedback.final_feedback_text,
                 ),
                 else_=Feedback.feedback_text,
@@ -62,7 +69,7 @@ def retrieve_rule_feedbacks_for_submission(
             Feedback.additional_text.label("additional_feedback_text"),
             case(
                 (
-                    Fulfillment.final_fulfillment_value is not None,
+                    Fulfillment.final_fulfillment_value.isnot(None),
                     Fulfillment.final_fulfillment_value,
                 ),
                 else_=Fulfillment.initial_fulfillment_value,
@@ -70,7 +77,7 @@ def retrieve_rule_feedbacks_for_submission(
         )
         .join(Rule, Rule.id == Feedback.rule_id)
         .join(RuleFeedbackSubmission, RuleFeedbackSubmission.feedback_id == Feedback.id)
-        .join(Fulfillment, Fulfillment.feedback_id == Feedback.id)
+        .outerjoin(Fulfillment, Fulfillment.feedback_id == Feedback.id)
         .filter(RuleFeedbackSubmission.submission_id == submission_id)
         .all()
     )

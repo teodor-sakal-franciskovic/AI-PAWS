@@ -7,3 +7,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def get_new_session():
+    return SessionLocal()

@@ -20,6 +20,7 @@ class SubmissionResponse(BaseModel):
     text: str
     achieved_points_percentage: Any
     submission_mode: str
+    status: Any
     rule_feedbacks: list[RuleFeedbackSchema]
 
 

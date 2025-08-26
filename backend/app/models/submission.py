@@ -1,3 +1,5 @@
+import enum
+
 from sqlalchemy import (
     TIMESTAMP,
     Column,
@@ -14,6 +16,12 @@ from sqlalchemy import (
 from .base import AcademicWritingSchema
 
 
+class SubmissionStatus(str, enum.Enum):
+    COMPLETED = "COMPLETED"
+    PENDING = "PENDING"
+    FAILED = "FAILED"
+
+
 class Submission(AcademicWritingSchema):
     __tablename__ = "submission"
 
@@ -28,3 +36,4 @@ class Submission(AcademicWritingSchema):
     graded = Column("graded", Boolean, server_default=sqlalchemy_text("false"))
     assignment_id = Column("assignment_id", Integer, ForeignKey("assignment.id"))
     file_bytes = Column("file_bytes", LargeBinary)
+    status = Column("status", String)

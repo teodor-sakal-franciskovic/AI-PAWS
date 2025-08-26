@@ -11,8 +11,9 @@ def retrieve_active_assignments_for_group(db: Session, group_id: str):
     now = datetime.now(timezone.utc)
 
     return (
-        db.query(Assignment)
+        db.query(Submission, Assignment)
         .join(AssignmentGroup, Assignment.id == AssignmentGroup.assignment_id)
+        .join(Submission, Submission.assignment_id == Assignment.id)
         .filter(
             Assignment.start_date <= now,
             Assignment.end_date >= now,
@@ -38,3 +39,7 @@ def retrieve_past_submissions_with_assignments_for_user(db: Session, user_id: in
 
 def retrieve_by_id(db: Session, id: int):
     return db.query(Assignment).filter(Assignment.id == id).first()
+
+
+def retrieve_all(db: Session):
+    return db.query(Assignment).all()

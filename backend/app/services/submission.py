@@ -1,13 +1,13 @@
 from sqlalchemy.orm import Session
 
 from ..models.chapter import Chapter
-from ..models.submission import Submission
+from ..models.submission import Submission, SubmissionStatus
 from ..models.submission_mode import SubmissionMode
 from ..repository.chapter import retrieve_by_name as retrieve_chapter_by_name
 from ..repository.submission_mode import (
     retrieve_by_name as retrieve_submission_mode_by_name,
 )
-from ..repository.submission import retrieve_by_id
+from ..repository.submission import retrieve_by_id, update_status
 from ..utils.logger import logger
 
 
@@ -19,6 +19,7 @@ def save_submission(
     user_id: int,
     assignment_id: int,
     file_bytes,
+    status: str,
     graded: bool = False,
 ):
     chapter: Chapter = retrieve_chapter_by_name(db, chapter_name)
@@ -34,6 +35,7 @@ def save_submission(
         graded=graded,
         assignment_id=assignment_id,
         file_bytes=file_bytes,
+        status=status,
     )
     db.add(submission)
     db.commit()
@@ -46,3 +48,11 @@ def retrieve_submission(db: Session, submission_id: int) -> Submission:
     submission: Submission = retrieve_by_id(db, submission_id)
     logger.info("Successfully retrieved submission")
     return submission
+
+
+def update_submission_status(
+    db: Session, submission: Submission, status: SubmissionStatus
+):
+    logger.info(f"Updating submission {submission.id} status to {status}...")
+    update_status(db, submission.id, status)
+    logger.info("Successfully updated the submission status...")

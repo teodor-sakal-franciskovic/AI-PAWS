@@ -23,7 +23,7 @@ class AssignmentResponse(BaseModel):
     chapter_name: str
 
 
-class FinishedAssignmentResponse(BaseModel):
+class SubmittedSubmissionForAssignmentResponse(BaseModel):
     id: int
     name: str
     start_date: datetime
