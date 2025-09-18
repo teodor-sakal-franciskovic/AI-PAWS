@@ -30,6 +30,7 @@ AI-Powered Academic Writing Support
 | Method | Path                      | Description                                   | FE Usage                                 |
 |--------|---------------------------|-----------------------------------------------|----------------------------------------------|
 | POST    | `/`            | Creation of a new assignment           | TA screen for creating assignments                            |
+| GET    | `/`            | Retrieval of all assignments           | TA screen for retrieving all assignments before downloading a zip of all submissions for a specific assignment                            |
 | GET    | `/active`       | Retrieval of currently active assignments for submission      | Student screen when taking a look at active assignments                    |
 | GET   | `/previous`            | Retrieval of previously submitted assignments            | Student screen when taking a look at previously submitted assignments                          |
 | POST   | `/{assignment_id}/chapters/{chapter_id}/interactive`            | Upload of the currently-written research paper and retrieval of the received feedback            | Student screen when uploading a research paper as an assignment, after the upload, view of all of the received feedback                          |
@@ -72,29 +73,24 @@ A pdf file upload is expected
 ```
 #### `GET /active`
 ```json
-[{
+[
+  {
   "id": 1,
   "name": "Problem Interactive 2025",
   "start_date": "2025-07-01T00:00:00Z",
   "end_date": "2025-07-15T23:59:00Z",
-  "submission_mode_id": 1,
+  "submission_mode_id": 2,
   "submission_mode_name": "Interactive mode",
   "chapter_id": 1,
   "chapter_name": "Problem"
 },
 {
-  "id": 1,
-  "name": "Problem Evaluative 2025",
-  "start_date": "2025-07-01T00:00:00Z",
-  "end_date": "2025-07-15T23:59:00Z",
-  "submission_mode_id": 2,
-  "submission_mode_name": "Evaluative mode",
-  "chapter_id": 1,
-  "chapter_name": "Problem"
-},
+  ...
+}
 ]
 ```
-#### `GET /previous`
+#### `GET /active`
+- "status" can be "COMPLETED", "PENDING", "FAILED" 
 ```json
 [{
   "id": 1,
@@ -107,6 +103,47 @@ A pdf file upload is expected
     "text": "This is the submitted essay text...",
     "achieved_points_percentage": 32,
     "submission_mode": "Evaluative mode",
+    "status": "COMPLETED",
+    "rule_feedbacks": [
+      {
+        "feedback_id": 1,
+        "rule_name": "Thesis Statement Clarity",
+        "rule_description": "Evaluate how clear and focused the thesis is.",
+        "feedback_text": "The thesis is clear but could be more specific.",
+        "additional_feedback_text": "Consider rewording to make the scope narrower.",
+        "fulfillment_value": 0.8
+      },
+      {
+        "feedback_id": 2,
+        "rule_name": "Evidence and Examples",
+        "rule_description": "Check whether the essay uses strong evidence.",
+        "feedback_text": "Good examples used throughout.",
+        "additional_feedback_text": "",
+        "fulfillment_value": 1.0
+      }
+    ]
+  }
+},
+{
+    ...
+}
+]
+```
+#### `GET /previous`
+- "status" can be "COMPLETED", "PENDING", "FAILED" 
+```json
+[{
+  "id": 1,
+  "name": "Final Research Essay",
+  "start_date": "2025-06-01T09:00:00Z",
+  "end_date": "2025-06-15T23:59:00Z",
+  "submission": {
+    "id": 101,
+    "submitted_at": "2025-06-15T18:45:00Z",
+    "text": "This is the submitted essay text...",
+    "achieved_points_percentage": 32,
+    "submission_mode": "Evaluative mode",
+    "status": "COMPLETED",
     "rule_feedbacks": [
       {
         "feedback_id": 1,
@@ -135,35 +172,16 @@ A pdf file upload is expected
 
 #### `POST /{assignment_id}/chapters/{chapter_id}/interactive`
 ```json
-[
-  {
-  "id": 42,
-  "feedback_text": "The system accurately detected the edge case in user input.",
-  "initially_fulfilled": true,
-  "rule_name": "InputEdgeValidation",
-  "rule_description": "Checks whether edge cases in user inputs are handled properly.",
-  "additional_text": "",
-  "is_valid": true,
-  },
-  {
-    ...
-  },
-]
+{
+  "submission_id": 1
+}
 ```
 
 #### `POST /{assignment_id}/chapters/{chapter_id}/evaluative`
-- Although some data gets returned, it shouldn't be shown to the student.
 ```json
-[
-  {
-    "rule_name": "rule1",
-    "grade": 2,
-    "grade_explanation": "Everything ok"
-  },
-  {
-    ...
-  }
-]
+{
+  "submission_id": 2
+}
 ```
 
 #### `GET /{assignment_id}/chapters/files`
@@ -299,13 +317,13 @@ data part is None, only the message gets returned.
  [
     {
       "id": 1,
-      "name": "Interaktivni mod",
-      "description": "Mod u kojem studenti dobijaju povratne informacije o poglavlju koje su priložili."
+      "name": "Interactive mode",
+      "description": "Mode in which students receive information about the quality of their submitted chapters."
     },
     {
       "id": 2,
-      "name": "Evalucioni mod",
-      "description": "Mod u kojem studenti dobijaju poene (i razloge zašto su ti poeni dodeljeni) za poglavlje koje su priložili."
+      "name": "Evaluative mode",
+      "description": "Mode in which students receive grades (and reasons behind them) for their submitted chapters."
     }
   ]
 ```
