@@ -253,7 +253,7 @@ data part is None, only the message gets returned.
 | Method | Path                      | Description                                   | FE Usage                                 |
 |--------|---------------------------|-----------------------------------------------|----------------------------------------------|
 | POST    | `/`            | Creation of a new group           | TA screen for creating student groups for a specific semester                            |
-| GET    | `/active`            | Retrieval of active groups           | Used for the TA assignment creation                            |
+| GET    | `/`            | Retrieval of active groups           | Used for the TA assignment creation                            |
  
 ### Body Examples
 #### `POST /`
@@ -269,7 +269,7 @@ data part is None, only the message gets returned.
 ```
 data part is None, only the message gets returned.
 ```
-#### `GET /active`
+#### `GET /`
 ```json
 [
     {
