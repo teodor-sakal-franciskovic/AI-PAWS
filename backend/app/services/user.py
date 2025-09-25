@@ -151,8 +151,14 @@ def batch_users(file: UploadFile, db: Session):
         except Exception as e:
             logger.info(f"Failed to send email to {row['email']}: {e}")
 
-    db.bulk_save_objects(users)
-    db.commit()
+    try:
+        db.bulk_save_objects(users)
+        db.commit()
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Something went wrong while writing the students to the database: {e}",
+        )
 
     logger.info(f"{len(users)} users imported successfully")
 

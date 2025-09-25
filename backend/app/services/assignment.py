@@ -66,24 +66,29 @@ def retrieve_assignments(db: Session):
 
 def retrieve_active_assignments_for_student(db: Session, user: User):
     logger.info(f"Retrieving active assignments for user {user.id}")
-    submissions_with_assignments: list[Submission, Assignment] = (
-        retrieve_active_assignments_for_group(db, user.group_id)
+    submissions_with_assignments: list[Assignment, Submission] = (
+        retrieve_active_assignments_for_group(db, user.group_id, user.id)
     )
     active_assignment_responses = []
-    for submission, assignment in submissions_with_assignments:
-        rule_feedbacks = retrieve_rule_feedbacks_for_submission(db, submission.id)
-        logger.info(f"Rule feedbacks {rule_feedbacks} for submission {submission.id}")
-        submission_response = SubmissionResponse(
-            id=submission.id,
-            text=submission.text,
-            achieved_points_percentage=submission.achieved_points_percentage,
-            submission_mode=retrieve_submission_mode_by_id(
-                db, submission.submission_mode_id
-            ).name,
-            submitted_at=submission.submitted_at,
-            status=submission.status,
-            rule_feedbacks=rule_feedbacks,
-        )
+    for assignment, submission in submissions_with_assignments:
+        if not submission:
+            submission_response = {}
+        else:
+            rule_feedbacks = retrieve_rule_feedbacks_for_submission(db, submission.id)
+            logger.info(
+                f"Rule feedbacks {rule_feedbacks} for submission {submission.id}"
+            )
+            submission_response = SubmissionResponse(
+                id=submission.id,
+                text=submission.text,
+                achieved_points_percentage=submission.achieved_points_percentage,
+                submission_mode=retrieve_submission_mode_by_id(
+                    db, submission.submission_mode_id
+                ).name,
+                submitted_at=submission.submitted_at,
+                status=submission.status,
+                rule_feedbacks=rule_feedbacks,
+            )
         finished_assignment_response = SubmittedSubmissionForAssignmentResponse(
             id=assignment.id,
             name=assignment.name,
@@ -101,23 +106,26 @@ def retrieve_previous_assignments_for_student(
     user: User,
 ) -> list[SubmittedSubmissionForAssignmentResponse]:
     logger.info(f"Retrieving finished assignments for the user {user.id}")
-    submissions_with_assignments: list[Submission, Assignment] = (
-        retrieve_past_submissions_with_assignments_for_user(db, user.id)
+    submissions_with_assignments: list[Assignment, Submission] = (
+        retrieve_past_submissions_with_assignments_for_user(db, user.group_id, user.id)
     )
     finished_assignment_responses = []
-    for submission, assignment in submissions_with_assignments:
-        rule_feedbacks = retrieve_rule_feedbacks_for_submission(db, submission.id)
-        submission_response = SubmissionResponse(
-            id=submission.id,
-            text=submission.text,
-            achieved_points_percentage=submission.achieved_points_percentage,
-            submission_mode=retrieve_submission_mode_by_id(
-                db, submission.submission_mode_id
-            ).name,
-            submitted_at=submission.submitted_at,
-            status=submission.status,
-            rule_feedbacks=rule_feedbacks,
-        )
+    for assignment, submission in submissions_with_assignments:
+        if not submission:
+            submission_response = {}
+        else:
+            rule_feedbacks = retrieve_rule_feedbacks_for_submission(db, submission.id)
+            submission_response = SubmissionResponse(
+                id=submission.id,
+                text=submission.text,
+                achieved_points_percentage=submission.achieved_points_percentage,
+                submission_mode=retrieve_submission_mode_by_id(
+                    db, submission.submission_mode_id
+                ).name,
+                submitted_at=submission.submitted_at,
+                status=submission.status,
+                rule_feedbacks=rule_feedbacks,
+            )
         finished_assignment_response = SubmittedSubmissionForAssignmentResponse(
             id=assignment.id,
             name=assignment.name,

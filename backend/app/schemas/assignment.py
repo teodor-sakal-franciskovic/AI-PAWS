@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from .submission import SubmissionResponse
+from typing import Any
 
 
 class AssignmentCreate(BaseModel):
@@ -28,4 +28,4 @@ class SubmittedSubmissionForAssignmentResponse(BaseModel):
     name: str
     start_date: datetime
     end_date: datetime
-    submission: SubmissionResponse
+    submission: Any
