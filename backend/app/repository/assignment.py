@@ -30,11 +30,14 @@ def retrieve_active_assignments_for_group(db: Session, group_id: int, user_id: i
     )
 
 
-def retrieve_past_submissions_with_assignments_for_user(db: Session, user_id: int):
+def retrieve_past_submissions_with_assignments_for_user(
+    db: Session, group_id: int, user_id: int
+):
     now = datetime.now(timezone.utc)
 
     return (
         db.query(Assignment, Submission)
+        .join(AssignmentGroup, Assignment.id == AssignmentGroup.assignment_id)
         .outerjoin(
             Submission,
             and_(
@@ -44,6 +47,7 @@ def retrieve_past_submissions_with_assignments_for_user(db: Session, user_id: in
         )
         .filter(
             Assignment.end_date < now,
+            AssignmentGroup.group_id == group_id,
         )
         .all()
     )

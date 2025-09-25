@@ -107,7 +107,7 @@ def retrieve_previous_assignments_for_student(
 ) -> list[SubmittedSubmissionForAssignmentResponse]:
     logger.info(f"Retrieving finished assignments for the user {user.id}")
     submissions_with_assignments: list[Assignment, Submission] = (
-        retrieve_past_submissions_with_assignments_for_user(db, user.id)
+        retrieve_past_submissions_with_assignments_for_user(db, user.group_id, user.id)
     )
     finished_assignment_responses = []
     for assignment, submission in submissions_with_assignments:
