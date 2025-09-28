@@ -72,24 +72,6 @@ A pdf file upload is expected
 }
 ```
 #### `GET /active`
-```json
-[
-  {
-  "id": 1,
-  "name": "Problem Interactive 2025",
-  "start_date": "2025-07-01T00:00:00Z",
-  "end_date": "2025-07-15T23:59:00Z",
-  "submission_mode_id": 2,
-  "submission_mode_name": "Interactive mode",
-  "chapter_id": 1,
-  "chapter_name": "Problem"
-},
-{
-  ...
-}
-]
-```
-#### `GET /active`
 - "status" can be "COMPLETED", "PENDING", "FAILED" 
 ```json
 [{
