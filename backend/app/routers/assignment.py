@@ -127,7 +127,15 @@ def retrieve_all_assignments(
     retrieve_assignments=Depends(get_retrieve_assignments),
 ):
     assignments_response: list[AssignmentResponse] = retrieve_assignments(db)
-    return assignments_response
+    return JSONResponse(
+        status_code=200,
+        content=json.loads(
+            GenericResponse(
+                message="Retrieved all assignments successfully.",
+                data=assignments_response,
+            ).model_dump_json()
+        ),
+    )
 
 
 @router.get("/{assignment_id}/submissions/files")
