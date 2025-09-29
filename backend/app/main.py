@@ -81,6 +81,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+async def health_check():
+    """Health check endpoint for App Runner"""
+    return {"status": "healthy", "message": "AI-PAWS API is running"}
+
+@app.get("/health")
+async def detailed_health_check():
+    """Detailed health check with basic diagnostics"""
+    from .settings import settings
+    return {
+        "status": "healthy",
+        "environment": settings.environment,
+        "use_aws_secrets": settings.use_aws_secrets
+    }
+
 app.include_router(auth.router)
 app.include_router(user.router)
 app.include_router(role.router)
