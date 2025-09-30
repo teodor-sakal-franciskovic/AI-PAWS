@@ -28,4 +28,5 @@ class SubmittedSubmissionForAssignmentResponse(BaseModel):
     name: str
     start_date: datetime
     end_date: datetime
+    submission_mode: str
     submission: Any

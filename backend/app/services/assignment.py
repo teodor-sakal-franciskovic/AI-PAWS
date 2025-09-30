@@ -95,6 +95,9 @@ def retrieve_active_assignments_for_student(db: Session, user: User):
             start_date=assignment.start_date,
             end_date=assignment.end_date,
             submission=submission_response,
+            submission_mode=retrieve_submission_mode_by_id(
+                db, assignment.submission_mode_id
+            ).name,
         )
         active_assignment_responses.append(finished_assignment_response)
     logger.info("Successfully retrieved active assignments")
@@ -132,6 +135,9 @@ def retrieve_previous_assignments_for_student(
             start_date=assignment.start_date,
             end_date=assignment.end_date,
             submission=submission_response,
+            submission_mode=retrieve_submission_mode_by_id(
+                db, assignment.submission_mode_id
+            ).name,
         )
         finished_assignment_responses.append(finished_assignment_response)
     logger.info("Successfully retrieved finished assignments")
