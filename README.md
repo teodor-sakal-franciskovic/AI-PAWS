@@ -79,6 +79,7 @@ A pdf file upload is expected
   "name": "Final Research Essay",
   "start_date": "2025-06-01T09:00:00Z",
   "end_date": "2025-06-15T23:59:00Z",
+  "submission_mode": "Evaluative mode",
   "submission": {
     "id": 101,
     "submitted_at": "2025-06-15T18:45:00Z",
@@ -119,6 +120,7 @@ A pdf file upload is expected
   "name": "Final Research Essay",
   "start_date": "2025-06-01T09:00:00Z",
   "end_date": "2025-06-15T23:59:00Z",
+  "submission_mode": "Evaluative mode",
   "submission": {
     "id": 101,
     "submitted_at": "2025-06-15T18:45:00Z",
