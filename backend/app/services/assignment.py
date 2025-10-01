@@ -32,6 +32,7 @@ from ..repository.submission import (
 from ..repository.submission_mode import (
     retrieve_by_id as retrieve_submission_mode_by_id,
 )
+from ..repository.chapter import retrieve_by_id as retrieve_chapter_by_id
 
 
 def create_assignment(db: Session, body: AssignmentCreate):
@@ -98,6 +99,8 @@ def retrieve_active_assignments_for_student(db: Session, user: User):
             submission_mode=retrieve_submission_mode_by_id(
                 db, assignment.submission_mode_id
             ).name,
+            chapter_id=assignment.chapter_id,
+            chapter_name=retrieve_chapter_by_id(db, assignment.chapter_id).name,
         )
         active_assignment_responses.append(finished_assignment_response)
     logger.info("Successfully retrieved active assignments")
@@ -138,6 +141,8 @@ def retrieve_previous_assignments_for_student(
             submission_mode=retrieve_submission_mode_by_id(
                 db, assignment.submission_mode_id
             ).name,
+            chapter_id=assignment.chapter_id,
+            chapter_name=retrieve_chapter_by_id(db, assignment.chapter_id).name,
         )
         finished_assignment_responses.append(finished_assignment_response)
     logger.info("Successfully retrieved finished assignments")

@@ -29,4 +29,6 @@ class SubmittedSubmissionForAssignmentResponse(BaseModel):
     start_date: datetime
     end_date: datetime
     submission_mode: str
+    chapter_id: int
+    chapter_name: str
     submission: Any
