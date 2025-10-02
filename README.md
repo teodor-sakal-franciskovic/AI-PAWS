@@ -92,6 +92,7 @@ A pdf file upload is expected
     "rule_feedbacks": [
       {
         "feedback_id": 1,
+        "is_valid": true,
         "rule_name": "Thesis Statement Clarity",
         "rule_description": "Evaluate how clear and focused the thesis is.",
         "feedback_text": "The thesis is clear but could be more specific.",
@@ -100,6 +101,7 @@ A pdf file upload is expected
       },
       {
         "feedback_id": 2,
+        "is_valid": true,
         "rule_name": "Evidence and Examples",
         "rule_description": "Check whether the essay uses strong evidence.",
         "feedback_text": "Good examples used throughout.",
@@ -135,6 +137,7 @@ A pdf file upload is expected
     "rule_feedbacks": [
       {
         "feedback_id": 1,
+        "is_valid": true,
         "rule_name": "Thesis Statement Clarity",
         "rule_description": "Evaluate how clear and focused the thesis is.",
         "feedback_text": "The thesis is clear but could be more specific.",
@@ -143,6 +146,7 @@ A pdf file upload is expected
       },
       {
         "feedback_id": 2,
+        "is_valid": true,
         "rule_name": "Evidence and Examples",
         "rule_description": "Check whether the essay uses strong evidence.",
         "feedback_text": "Good examples used throughout.",
@@ -228,7 +232,7 @@ fetch("http://localhost:8080/auth/login", {
   "initially_fulfilled": true,
   "rule_name": "InputEdgeValidation",
   "rule_description": "Checks whether edge cases in user inputs are handled properly.",
-  "additional_text": "Consider enhancing the regex for better email validation coverage.",
+  "additional_feedback_text": "Consider enhancing the regex for better email validation coverage.",
   "is_valid": true
 }
 ```

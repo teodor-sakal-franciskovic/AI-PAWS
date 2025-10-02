@@ -57,6 +57,7 @@ def retrieve_rule_feedbacks_for_submission(
     rows = (
         session.query(
             Feedback.id.label("feedback_id"),
+            Feedback.is_valid,
             Rule.name.label("rule_name"),
             Rule.description.label("rule_description"),
             case(

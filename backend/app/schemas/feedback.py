@@ -9,7 +9,7 @@ class InteractiveFeedbackResponse(BaseModel):
     initially_fulfilled: bool
     rule_name: str
     rule_description: str
-    additional_text: str
+    additional_feedback_text: str
     is_valid: bool
 
 

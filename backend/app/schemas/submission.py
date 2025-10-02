@@ -7,6 +7,7 @@ from .rule import EvaluativeRuleSchema
 
 class RuleFeedbackSchema(BaseModel):
     feedback_id: int
+    is_valid: bool
     rule_name: str
     rule_description: str
     feedback_text: Any
