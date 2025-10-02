@@ -97,7 +97,8 @@ A pdf file upload is expected
         "rule_description": "Evaluate how clear and focused the thesis is.",
         "feedback_text": "The thesis is clear but could be more specific.",
         "additional_feedback_text": "Consider rewording to make the scope narrower.",
-        "fulfillment_value": 0.8
+        "fulfillment_value": 0.8,
+        "initially_fulfilled": true,
       },
       {
         "feedback_id": 2,
@@ -106,7 +107,8 @@ A pdf file upload is expected
         "rule_description": "Check whether the essay uses strong evidence.",
         "feedback_text": "Good examples used throughout.",
         "additional_feedback_text": "",
-        "fulfillment_value": 1.0
+        "fulfillment_value": 1.0,
+        "initially_fulfilled": true,
       }
     ]
   }
@@ -142,7 +144,8 @@ A pdf file upload is expected
         "rule_description": "Evaluate how clear and focused the thesis is.",
         "feedback_text": "The thesis is clear but could be more specific.",
         "additional_feedback_text": "Consider rewording to make the scope narrower.",
-        "fulfillment_value": 0.8
+        "fulfillment_value": 0.8,
+        "initially_fulfilled": true,
       },
       {
         "feedback_id": 2,
@@ -151,7 +154,8 @@ A pdf file upload is expected
         "rule_description": "Check whether the essay uses strong evidence.",
         "feedback_text": "Good examples used throughout.",
         "additional_feedback_text": "",
-        "fulfillment_value": 1.0
+        "fulfillment_value": 1.0,
+        "initially_fulfilled": true,
       }
     ]
   }

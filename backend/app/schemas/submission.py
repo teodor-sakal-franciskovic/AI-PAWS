@@ -13,6 +13,7 @@ class RuleFeedbackSchema(BaseModel):
     feedback_text: Any
     additional_feedback_text: str
     fulfillment_value: Any
+    initially_fulfilled: bool
 
 
 class SubmissionResponse(BaseModel):
