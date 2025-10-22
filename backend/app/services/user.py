@@ -5,11 +5,17 @@ import pandas as pd
 from fastapi import HTTPException, UploadFile
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict, Any
 
 from ..models.role import Role
 from ..models.user import User
 from ..models.submission import Submission
+from ..models.rule import Rule
+from ..models.prompt_template import PromptTemplate
+
+from ..services.historical_profile import insert_initial_student_historical_profile
+
+from ..repository.rule import retrieve_all as retrieve_all_rules
 from ..repository.role import (
     retrieve_by_id as retrieve_role_by_id,
     retrieve_by_name as retrieve_role_by_name,
@@ -18,6 +24,7 @@ from ..repository.user import (
     retrieve_by_email_from_user,
     retrieve_evaluative_submissions,
     retrieve_by_id as retrieve_user_by_id_db,
+    retrieve_by_index as retrieve_user_by_index,
 )
 from ..repository.submission import update_grade
 from ..repository.submission_mode import (
@@ -25,6 +32,9 @@ from ..repository.submission_mode import (
 )
 from ..repository.feedback import update_final_feedback_text
 from ..repository.fulfillment import update_final_fulfillment_value
+from ..repository.prompt_template import (
+    retrieve_by_purpose as retrieve_prompt_template_by_purpose,
+)
 from ..schemas.user import (
     UpdatedUserInfo,
     UpdatedUserPassword,
@@ -39,7 +49,18 @@ from ..utils.auth import get_password_hash
 from ..utils.db import add, commit_and_refresh
 from ..utils.email import get_email_body, send_email
 from ..utils.logger import logger
-from ..utils.user import create_user_response, group_submission_data
+from ..utils.user import (
+    create_user_response,
+    group_submission_data,
+    build_students_data,
+)
+
+from ..llm.prompt import (
+    generate_user_prompt_for_initial_student_knowledge_creation,
+    initialise_format_instructions,
+    generate_whole_prompt,
+    call_llm,
+)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -195,3 +216,50 @@ def grade_submission(
 def retrieve_user_by_id(db: Session, id: int):
     user: User = retrieve_user_by_id_db(db, id)
     return user
+
+
+def construct_initial_knowledge(file: UploadFile, db: Session, llm):
+    if file.content_type != "text/csv":
+        raise HTTPException(status_code=400, detail="File must be a CSV")
+
+    try:
+        logger.info("Reading pretest results from the uploaded csv...")
+        df = pd.read_csv(StringIO(file.file.read().decode("utf-8")))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Failed to parse CSV")
+
+    logger.info("Successfully read pretest results from the uploaded csv")
+
+    logger.info("Retrieving all rules...")
+    rules: List[Rule] = retrieve_all_rules(db)
+    rule_descriptions = {r.name: r.description for r in rules}
+
+    students_data: List[Dict[str, Any]] = build_students_data(df, rule_descriptions)
+
+    initial_interactive_prompt_template: PromptTemplate = (
+        retrieve_prompt_template_by_purpose(db, "Initial Student Knowledge Creation")
+    )
+    system_prompt = initial_interactive_prompt_template.system_text
+    for data in students_data:
+        index = data.get("index")
+        logger.info(f"Generating initial student knowledge for student {index}")
+        user_prompt = generate_user_prompt_for_initial_student_knowledge_creation(
+            initial_interactive_prompt_template, data
+        )
+        parser, format_instructions = initialise_format_instructions(
+            "LLMInitialKnowledgeResponse"
+        )
+        prompt = generate_whole_prompt(format_instructions)
+        logger.info("Calling GPT API...")
+        try:
+            response = call_llm(prompt, llm, parser, system_prompt, user_prompt)
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Something went wrong while calling the GPT API: {e}",
+            )
+        logger.info(f"Initial student knowledge: {response.initial_student_knowledge}")
+        user: User = retrieve_user_by_index(db, index)
+        insert_initial_student_historical_profile(
+            db, user.id, response.initial_student_knowledge
+        )

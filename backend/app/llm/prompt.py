@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 from langchain.output_parsers import PydanticOutputParser
 from langchain.prompts import ChatPromptTemplate
-from typing import Any
+from typing import Any, Dict
 from sqlalchemy.orm import Session
 
 from ..models.historical_profile import HistoricalProfile
@@ -14,6 +14,7 @@ from .schema import (
     LLMAdditionalFeedbackResponse,
     LLMEvaluationResponse,
     LLMUpdatedKnowledge,
+    LLMInitialKnowledgeResponse,
 )
 
 from ..schemas.submission import TAEvaluationGrade
@@ -30,6 +31,15 @@ def generate_system_prompt(
     )
     system_prompt = prompt_template.system_text.format(student_knowledge=summary_text)
     return system_prompt
+
+
+def generate_user_prompt_for_initial_student_knowledge_creation(
+    prompt_template: PromptTemplate, student_data: Dict[str, Any]
+):
+    user_prompt = prompt_template.user_text
+    for rule in student_data.get("rules"):
+        user_prompt += f"Rule name: {rule['rule_name']}, Rule description: {rule['rule_description']}, Grade: {rule['value']}\n"
+    return user_prompt
 
 
 def generate_user_prompt_for_initial_interactive_and_evaluative_mode(
@@ -111,7 +121,7 @@ def generate_whole_prompt(format_instructions):
     return prompt
 
 
-def call_prompt(prompt, llm, parser, system_prompt, user_prompt):
+def call_llm(prompt, llm, parser, system_prompt, user_prompt):
     chain = prompt | llm | parser
     response = chain.invoke(
         {"system_prompt": system_prompt, "user_prompt": user_prompt}
@@ -129,6 +139,8 @@ def _initialise_llm_response_schema(pydantic_object_name: str):
         return LLMEvaluationResponse
     elif pydantic_object_name == "LLMUpdatedKnowledge":
         return LLMUpdatedKnowledge
+    elif pydantic_object_name == "LLMInitialKnowledgeResponse":
+        return LLMInitialKnowledgeResponse
     else:
         raise HTTPException(
             status_code=500,

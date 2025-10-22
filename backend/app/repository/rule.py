@@ -44,3 +44,7 @@ def retrieve_rule_by_feedback_id(db: Session, feedback_id: int) -> Rule:
         .filter(Feedback.id == feedback_id)
         .first()
     )
+
+
+def retrieve_all(db: Session):
+    return db.query(Rule).all()

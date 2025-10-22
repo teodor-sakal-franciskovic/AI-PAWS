@@ -32,3 +32,7 @@ class LLMEvaluationResponse(BaseModel):
 
 class LLMUpdatedKnowledge(BaseModel):
     updated_knowledge: str
+
+
+class LLMInitialKnowledgeResponse(BaseModel):
+    initial_student_knowledge: str
