@@ -2,7 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..llm.prompt import (
-    call_prompt,
+    call_llm,
     generate_whole_prompt,
     generate_user_prompt_for_initial_interactive_and_evaluative_mode,
     generate_additional_interactive_user_prompt,
@@ -88,7 +88,7 @@ def request_initial_interactive_feedback(
 
     logger.info(f"Calling GPT API... user {user.id}")
     try:
-        response = call_prompt(prompt, llm, parser, system_prompt, user_prompt)
+        response = call_llm(prompt, llm, parser, system_prompt, user_prompt)
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -146,7 +146,7 @@ def request_additional_interactive_feedback(
 
     logger.info("Calling GPT API...")
     try:
-        response = call_prompt(prompt, llm, parser, system_prompt, user_prompt)
+        response = call_llm(prompt, llm, parser, system_prompt, user_prompt)
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -201,7 +201,7 @@ def request_evaluation(
 
     logger.info(f"Calling GPT API... user {user.id}")
     try:
-        response = call_prompt(prompt, llm, parser, system_prompt, user_prompt)
+        response = call_llm(prompt, llm, parser, system_prompt, user_prompt)
     except Exception as e:
         raise HTTPException(
             status_code=500,

@@ -24,6 +24,7 @@ from ..dependencies.user import (
     get_retrieve_evaluative_submissions_for_ta_students,
     get_grade_submission,
     get_retrieve_user_by_id,
+    get_construct_initial_knowledge,
 )
 from ..dependencies.historical_profile import (
     get_insert_historical_profile_snapshot,
@@ -228,5 +229,22 @@ def grade_submission(
         content=GenericResponse(
             message=f"Successfully graded submission for submission {submission_id}",
             data=None,
+        ).model_dump(),
+    )
+
+
+@router.post("/initial-knowledge", tags=["users"], status_code=status.HTTP_201_CREATED)
+def create_students_initial_knowledge(
+    role: Annotated[Role, Depends(require_role("TA"))],
+    llm=Depends(initialise_llm),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    construct_initial_knowledge=Depends(get_construct_initial_knowledge),
+):
+    construct_initial_knowledge(file, db, llm)
+    return JSONResponse(
+        status_code=status.HTTP_201_CREATED,
+        content=GenericResponse(
+            message="Succesfully created initial students knowledge.", data=None
         ).model_dump(),
     )

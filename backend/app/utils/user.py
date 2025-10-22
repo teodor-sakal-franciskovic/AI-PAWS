@@ -1,3 +1,5 @@
+import pandas as pd
+from typing import Dict, List, Any
 from typing import List
 from ..models.role import Role
 from ..models.user import User
@@ -98,3 +100,49 @@ def group_submission_data(sql_user_submissions) -> EvaluativeUsersSubmissionResp
         EvaluativeUserSubmissionSchema(**u) for u in user_list_dicts
     ]
     return EvaluativeUsersSubmissionResponse(users_with_submissions=user_models)
+
+
+def build_students_data(
+    df: pd.DataFrame, rule_descriptions: Dict[str, str], index_column: str = "Indeks"
+) -> List[Dict[str, Any]]:
+    """
+    Build a structured list of student evaluation data by combining rule values
+    from a DataFrame with rule descriptions from the database.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing student evaluations.
+                           First column (or the one named `index_column`)
+                           should identify each student.
+        rule_descriptions (Dict[str, str]): Mapping of rule_name -> description.
+        index_column (str, optional): Name of the column representing student index.
+                                      Defaults to "index".
+
+    Returns:
+        List[Dict[str, Any]]: A list of dictionaries, each representing one student,
+                              with all rule evaluations and descriptions.
+    """
+    students_data: List[Dict[str, Any]] = []
+
+    for _, row in df.iterrows():
+        student_index = row["Indeks"]
+        rules = []
+
+        for col in df.columns:
+            if col == index_column:
+                continue
+
+            rule_name = col
+            rule_value = row[col]
+            rule_description = rule_descriptions.get(rule_name, "No description found")
+
+            rules.append(
+                {
+                    "rule_name": rule_name,
+                    "rule_description": rule_description,
+                    "value": int(rule_value) if pd.notna(rule_value) else None,
+                }
+            )
+
+        students_data.append({"student_index": student_index, "rules": rules})
+
+    return students_data

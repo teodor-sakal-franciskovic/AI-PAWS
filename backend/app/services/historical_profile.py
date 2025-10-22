@@ -17,11 +17,24 @@ from ..llm.prompt import (
     generate_evaluative_summarised_knowledge_user_prompt,
     initialise_format_instructions,
     generate_whole_prompt,
-    call_prompt,
+    call_llm,
 )
 from ..llm.schema import LLMUpdatedKnowledge
 
 from ..schemas.submission import TAEvaluationGradesRequest
+
+
+def insert_initial_student_historical_profile(
+    db: Session, user_id: int, initial_knowledge: str
+):
+    logger.info(f"Inserting initial historical profile snapshot for user {user_id}...")
+    historical_profile = HistoricalProfile(
+        user_id=user_id,
+        summary=initial_knowledge,
+    )
+    db.add(historical_profile)
+    db.commit()
+    logger.info("Successfully inserted initial historical profile snapshot")
 
 
 def insert_historical_profile_snapshot(
@@ -76,7 +89,7 @@ def retrieve_updated_student_knowledge_from_evaluative_mode(
 
     logger.info(f"Calling GPT API... user {submission.user_id}")
     try:
-        response = call_prompt(
+        response = call_llm(
             prompt,
             llm,
             parser,

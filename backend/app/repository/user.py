@@ -11,6 +11,10 @@ from ..models.feedback import Feedback
 from ..models.fulfillment import Fulfillment
 
 
+def retrieve_by_index(db: Session, index: str):
+    return db.query(User).filter(User.index == index).first()
+
+
 def retrieve_by_email_from_user(db: Session, user: UserCreate):
     return db.query(User).filter(User.email == user.email).first()
 
