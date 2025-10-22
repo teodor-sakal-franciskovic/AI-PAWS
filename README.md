@@ -360,6 +360,7 @@ data part is None, only the message gets returned.
 | POST    | `/batch`       | Batch creation of students      | TA screen with the csv file upload button.                    |
 | GET    | `/my-students/submissions/evaluative`            | TA Retrieval of evaluative submissions of his assigned students            | For each TA's student, all of the evaluative-assignment submissions are present.                        |
 | PUT    | `/submission/{submission_id}/grade`       | TA grading of a submission      | After the submission has been sent to the app's evaluative mode (performed by LLM), TA has to go over the given grades and feedback and finalise them (by either editing or leaving them as they are). Afterwards, if needed, TA can edit the feedback/grades again.                    |
+| POST   | `/initial-knowledge`       | TA submission of pretest results      | Students will have a pretest, which will be graded by the TAs. Afterwards, the results (which are going to be written in a csv file) should be uploaded via this endpoint by a TA, so that the initial student knowledge is present in the database.                    |
 
 ### Body Examples
 #### `POST /registration`
@@ -408,6 +409,13 @@ A csv file is expected, with the following header columns:
     }
   ]
 }
+```
+
+#### `POST /batch`
+```
+A csv file is expected, with the following header columns: 
+- Indeks,
+- Other fields should be the names of the rules that are being evaluated.
 ```
 
 ### Return Value Examples
@@ -513,6 +521,11 @@ data part is None, only the message gets returned.
 ```
 
 #### ```PUT /submission/{submission_id}/grade```
+```
+data part is None, only the message gets returned.
+```
+
+#### `POST /initial-knowledge`
 ```
 data part is None, only the message gets returned.
 ```
