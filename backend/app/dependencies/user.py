@@ -8,7 +8,7 @@ from ..services.user import (
     retrieve_evaluative_submissions_for_ta_students,
     grade_submission,
     retrieve_user_by_id,
-    construct_initial_knowledge,
+    read_pretest_results,
 )
 
 
@@ -48,5 +48,5 @@ def get_retrieve_user_by_id():
     return retrieve_user_by_id
 
 
-def get_construct_initial_knowledge():
-    return construct_initial_knowledge
+def get_read_pretest_results():
+    return read_pretest_results
