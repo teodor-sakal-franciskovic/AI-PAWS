@@ -1,9 +1,18 @@
 import json
-
-from typing import Annotated
+import pandas as pd
+from typing import Annotated, List, Dict, Any
 from copy import deepcopy
 
-from fastapi import APIRouter, Body, Depends, File, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    File,
+    UploadFile,
+    status,
+    BackgroundTasks,
+    HTTPException,
+)
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
@@ -12,7 +21,7 @@ from ..dependencies.auth import (
     get_current_active_user_role,
     require_role,
 )
-from ..dependencies.db import get_db
+from ..dependencies.db import get_db, get_new_session
 from ..dependencies.llm import initialise_llm
 from ..dependencies.user import (
     get_batch_users,
@@ -24,7 +33,7 @@ from ..dependencies.user import (
     get_retrieve_evaluative_submissions_for_ta_students,
     get_grade_submission,
     get_retrieve_user_by_id,
-    get_construct_initial_knowledge,
+    get_read_pretest_results,
 )
 from ..dependencies.historical_profile import (
     get_insert_historical_profile_snapshot,
@@ -44,6 +53,29 @@ from ..schemas.user import (
     UserCreate,
     UserResponse,
     EvaluativeUsersSubmissionResponse,
+)
+from ..utils.logger import logger
+
+from ..models.rule import Rule
+from ..models.prompt_template import PromptTemplate
+
+from ..services.historical_profile import insert_initial_student_historical_profile
+
+from ..repository.rule import retrieve_all as retrieve_all_rules
+from ..repository.user import (
+    retrieve_by_index as retrieve_user_by_index,
+)
+from ..repository.prompt_template import (
+    retrieve_by_purpose as retrieve_prompt_template_by_purpose,
+)
+from ..utils.user import (
+    build_students_data,
+)
+from ..llm.prompt import (
+    generate_user_prompt_for_initial_student_knowledge_creation,
+    initialise_format_instructions,
+    generate_whole_prompt,
+    call_llm,
 )
 
 router = APIRouter(
@@ -235,16 +267,78 @@ def grade_submission(
 
 @router.post("/initial-knowledge", tags=["users"], status_code=status.HTTP_201_CREATED)
 def create_students_initial_knowledge(
+    background_tasks: BackgroundTasks,
     role: Annotated[Role, Depends(require_role("TA"))],
     llm=Depends(initialise_llm),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    construct_initial_knowledge=Depends(get_construct_initial_knowledge),
+    read_pretest_results=Depends(get_read_pretest_results),
 ):
-    construct_initial_knowledge(file, db, llm)
+    df = read_pretest_results(file)
+
+    def generate_initial_student_knowledge(df: pd.DataFrame):
+        db = get_new_session()
+        try:
+            logger.info("[BACKGROUND] Retrieving all rules...")
+            rules: List[Rule] = retrieve_all_rules(db)
+            rule_descriptions = {r.name: r.description for r in rules}
+            logger.info("[BACKGROUND] Successfully retrieved all rules")
+
+            logger.info("[BACKGROUND] Building students data from the df...")
+            students_data: List[Dict[str, Any]] = build_students_data(
+                df, rule_descriptions
+            )
+            logger.info("[BACKGROUND] Successfully built students data from the df")
+
+            logger.info("[BACKGROUND] Retrieving prompts...")
+            initial_interactive_prompt_template: PromptTemplate = (
+                retrieve_prompt_template_by_purpose(
+                    db, "Initial Student Knowledge Creation"
+                )
+            )
+            system_prompt = initial_interactive_prompt_template.system_text
+            logger.info("[BACKGROUND] Successfully retrieved prompts")
+            for data in students_data:
+                index = data.get("index")
+                logger.info(
+                    f"[BACKGROUND] Generating initial student knowledge for student {index}"
+                )
+                user_prompt = (
+                    generate_user_prompt_for_initial_student_knowledge_creation(
+                        initial_interactive_prompt_template, data
+                    )
+                )
+                parser, format_instructions = initialise_format_instructions(
+                    "LLMInitialKnowledgeResponse"
+                )
+                prompt = generate_whole_prompt(format_instructions)
+                logger.info("[BACKGROUND] Calling GPT API...")
+                try:
+                    response = call_llm(prompt, llm, parser, system_prompt, user_prompt)
+                except Exception as e:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Something went wrong while calling the GPT API: {e}",
+                    )
+                logger.info(
+                    f"[BACKGROUND] Initial student knowledge: {response.initial_student_knowledge}"
+                )
+                user: User = retrieve_user_by_index(db, index)
+                insert_initial_student_historical_profile(
+                    db, user.id, response.initial_student_knowledge
+                )
+        except Exception as e:
+            logger.info(f"[BACKGROUND] An error occurred: {e}")
+            db.rollback()
+        finally:
+            db.close()
+
+    background_tasks.add_task(generate_initial_student_knowledge, df)
+
     return JSONResponse(
-        status_code=status.HTTP_201_CREATED,
+        status_code=status.HTTP_200_OK,
         content=GenericResponse(
-            message="Succesfully created initial students knowledge.", data=None
+            message=f"Succesfully uploaded pretest results. Generating the initial knowledge for {df['Indeks'].nunique()} students in the background...",
+            data=None,
         ).model_dump(),
     )
