@@ -31,8 +31,8 @@ echo "🔐 Logging into ECR..."
 aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 542585190596.dkr.ecr.eu-central-1.amazonaws.com
 
 echo "📤 Pushing to ECR..."
-docker tag ai-paws-staging:latest $ECR_REPOSITORY:latest
-docker push $ECR_REPOSITORY:latest
+docker tag ai-paws-staging:latest "${ECR_REPOSITORY}:latest"
+docker push "${ECR_REPOSITORY}:latest"
 
 echo "🔄 Updating service with force new deployment..."
 cd ..
@@ -60,7 +60,6 @@ SERVICE_INFO=$(aws ecs describe-services \
     --cluster $ECS_CLUSTER \
     --services $SERVICE_NAME \
     --region $AWS_REGION)
-
 
 
 RUNNING_TASKS=$(aws ecs list-tasks \
