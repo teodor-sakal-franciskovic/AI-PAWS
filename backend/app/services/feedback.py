@@ -78,6 +78,7 @@ def request_initial_interactive_feedback(
         knowledge_summarisation_prompt_template,
         rules,
         submission,
+        chapter_name,
     )
     logger.info("Successfully formed user prompt")
 
@@ -185,10 +186,7 @@ def request_evaluation(
 
     logger.info(f"Forming user prompt: user {user.id}")
     user_prompt = generate_user_prompt_for_initial_interactive_and_evaluative_mode(
-        evaluative_prompt_template,
-        None,
-        rules,
-        submission,
+        evaluative_prompt_template, None, rules, submission, chapter_name
     )
     logger.info("Successfully formed user prompt")
 

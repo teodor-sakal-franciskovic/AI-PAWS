@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # needed for Alembic migrations to work
-from .models.base import AcademicWritingSchema
+from .models.base import AcademicWritingSchema  # noqa: F401
 from .routers import (
     auth,
     chapter,
@@ -48,12 +48,6 @@ Endpoints associated with the assignments, such as their creation.
 ## Submission modes
 
 Endpoints associated with the submission modes, such as their retrieval.
-
-## TODOs:
-Open problems
-- If there is a table, and below it there are multiple "headings" (either new chapter/subchapter), the one on the right gets noticed first and screws the logic up
-    - This can be potentially upgraded by using GPT for text extraction (PDF upload)
-Modify prompts (the one for the summarised knowledge + all of the rules should be in more detail)
 """
 
 app = FastAPI(
@@ -81,20 +75,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 async def health_check():
     """Health check endpoint for App Runner"""
     return {"status": "healthy", "message": "AI-PAWS API is running"}
 
+
 @app.get("/health")
 async def detailed_health_check():
     """Detailed health check with basic diagnostics"""
     from .settings import settings
+
     return {
         "status": "healthy",
         "environment": settings.environment,
-        "use_aws_secrets": settings.use_aws_secrets
+        "use_aws_secrets": settings.use_aws_secrets,
     }
+
 
 app.include_router(auth.router)
 app.include_router(user.router)
