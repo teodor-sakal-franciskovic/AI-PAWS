@@ -3,20 +3,10 @@ import tempfile
 
 # https://pypi.org/project/pymupdf4llm/
 import pymupdf4llm
-from fastapi import HTTPException, status
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 
-from ..utils.chapter import (
-    add_chapter_end_indices,
-    convert_to_latin,
-    extract_chapter_by_title,
-    find_chapter_matches,
-    get_end_of_document,
-    get_valid_chapter_titles,
-    identify_valid_chapters,
-    normalise_title,
-)
 from ..utils.logger import logger
 from ..models.chapter import Chapter
 from ..repository.chapter import retrieve_all, retrieve_by_id
@@ -48,27 +38,6 @@ def extract_pdf_to_markdown(file_bytes: bytes):
     logger.info("Successfully converted pdf to markdown text")
 
     return markdown_text
-
-
-def extract_chapter_text(markdown_text: str, chapter_name: str, db: Session) -> str:
-    latin_text = convert_to_latin(markdown_text)
-    normalised_target = normalise_title(chapter_name)
-    valid_titles = get_valid_chapter_titles(db)
-    matches = find_chapter_matches(latin_text)
-    chapters = identify_valid_chapters(matches, valid_titles)
-
-    if not chapters:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="No valid chapters found in the document.",
-        )
-
-    end_of_text = get_end_of_document(latin_text)
-    add_chapter_end_indices(chapters, end_of_text)
-
-    extracted = extract_chapter_by_title(latin_text, chapters, normalised_target)
-    logger.info(f"Extracted chapter '{chapter_name}' with length {len(extracted)}")
-    return extracted
 
 
 def retrieve_chapters(db: Session):

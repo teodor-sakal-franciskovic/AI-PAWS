@@ -15,7 +15,6 @@ from ..dependencies.assignment import (
 )
 from ..dependencies.auth import get_current_active_user, require_role
 from ..dependencies.chapter import (
-    get_extract_chapter_text,
     get_extract_pdf_to_markdown,
     get_retrieve_chapter_object_by_id,
 )
@@ -162,7 +161,6 @@ def upload_chapter_interactive(
     db: Session = Depends(get_db),
     llm=Depends(initialise_llm),
     extract_pdf_to_markdown=Depends(get_extract_pdf_to_markdown),
-    extract_chapter_text=Depends(get_extract_chapter_text),
     save_submission=Depends(get_save_submission),
     request_initial_interactive_feedback=Depends(
         get_request_initial_interactive_feedback
@@ -179,10 +177,9 @@ def upload_chapter_interactive(
     chapter_name: str = chapter.name.lower()
     file_bytes = anyio.run(file.read)
     markdown_text = extract_pdf_to_markdown(file_bytes)
-    extracted_text = extract_chapter_text(markdown_text, chapter_name, db)
     submission: Submission = save_submission(
         db,
-        extracted_text,
+        markdown_text,
         chapter_name,
         "Interactive mode",
         current_user.id,
@@ -263,7 +260,6 @@ def upload_chapter_evaluative(
     db: Session = Depends(get_db),
     llm=Depends(initialise_llm),
     extract_pdf_to_markdown=Depends(get_extract_pdf_to_markdown),
-    extract_chapter_text=Depends(get_extract_chapter_text),
     save_submission=Depends(get_save_submission),
     request_evaluation=Depends(get_request_evaluation),
     create_feedback_objects_for_evaluative_mode=Depends(
@@ -277,11 +273,10 @@ def upload_chapter_evaluative(
     chapter_name: str = chapter.name.lower()
     file_bytes = anyio.run(file.read)
     markdown_text = extract_pdf_to_markdown(file_bytes)
-    extracted_text = extract_chapter_text(markdown_text, chapter_name, db)
 
     submission: Submission = save_submission(
         db,
-        extracted_text,
+        markdown_text,
         chapter_name,
         "Evaluative mode",
         current_user.id,

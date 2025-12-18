@@ -47,10 +47,12 @@ def generate_user_prompt_for_initial_interactive_and_evaluative_mode(
     knowledge_summarisation_prompt_template: Any,
     rules: list,
     submission: Submission,
+    chapter_name: str,
 ):
     user_prompt = prompt_template.user_text
     for _, rule_name, rule_description in rules:
         user_prompt += f"{rule_name}\n{rule_description}\n\n"
+    user_prompt += f"Evaluiraj SAMO deo teksta koji se odnosi na poglavlje {chapter_name}. Ostatak teksta koristi kao dodatni kontekst.\n"
     user_prompt += "Tekst:\n"
     user_prompt += submission.text
     if knowledge_summarisation_prompt_template:
