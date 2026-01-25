@@ -1,0 +1,62 @@
+{
+    "family": "ai-paws-prod",
+    "containerDefinitions": [
+        {
+            "name": "ai-paws-container",
+            "image": "542585190596.dkr.ecr.eu-central-1.amazonaws.com/ai-paws-prod:latest",
+            "portMappings": [
+                {
+                    "containerPort": 8000,
+                    "hostPort": 8000,
+                    "protocol": "tcp"
+                }
+            ],
+            "environment": [
+                {"name": "AWS_DEFAULT_REGION", "value": "eu-central-1"},
+                {"name": "USE_AWS_SECRETS", "value": "true"},
+                {"name": "ENVIRONMENT", "value": "production"}
+            ],
+            "secrets": [
+                {"name": "DATABASE_HOST", "valueFrom": "arn:aws:secretsmanager:eu-central-1:542585190596:secret:ai-paws-database-prod:database_host::"},
+                {"name": "DATABASE_NAME", "valueFrom": "arn:aws:secretsmanager:eu-central-1:542585190596:secret:ai-paws-database-prod:database_name::"},
+                {"name": "DATABASE_PASSWORD", "valueFrom": "arn:aws:secretsmanager:eu-central-1:542585190596:secret:ai-paws-database-prod:database_password::"},
+                {"name": "DATABASE_PORT", "valueFrom": "arn:aws:secretsmanager:eu-central-1:542585190596:secret:ai-paws-database-prod:database_port::"},
+                {"name": "DATABASE_USER", "valueFrom": "arn:aws:secretsmanager:eu-central-1:542585190596:secret:ai-paws-database-prod:database_user::"},
+                {"name": "SECRET_KEY", "valueFrom": "arn:aws:secretsmanager:eu-central-1:542585190596:secret:ai-paws-application-staging:secret_key::"},
+                {"name": "ALGORITHM", "valueFrom": "arn:aws:secretsmanager:eu-central-1:542585190596:secret:ai-paws-application-staging:algorithm::"},
+                {"name": "ACCESS_TOKEN_EXPIRE_MINUTES", "valueFrom": "arn:aws:secretsmanager:eu-central-1:542585190596:secret:ai-paws-application-staging:access_token_expire_minutes::"},
+                {"name": "OPENAI_API_KEY", "valueFrom": "arn:aws:secretsmanager:eu-central-1:542585190596:secret:ai-paws-openai-staging:openai_api_key::"},
+                {"name": "LLM_NAME", "valueFrom": "arn:aws:secretsmanager:eu-central-1:542585190596:secret:ai-paws-openai-staging:llm_name::"},
+                {"name": "SMTP_SERVER", "valueFrom": "arn:aws:secretsmanager:eu-central-1:542585190596:secret:ai-paws-smtp-staging:smtp_server::"},
+                {"name": "SMTP_PORT", "valueFrom": "arn:aws:secretsmanager:eu-central-1:542585190596:secret:ai-paws-smtp-staging:smtp_port::"},
+                {"name": "SMTP_USERNAME", "valueFrom": "arn:aws:secretsmanager:eu-central-1:542585190596:secret:ai-paws-smtp-staging:smtp_username::"},
+                {"name": "SMTP_PASSWORD", "valueFrom": "arn:aws:secretsmanager:eu-central-1:542585190596:secret:ai-paws-smtp-staging:smtp_password::"},
+                {"name": "GOOGLE_SERVICE_ACCOUNT_FILE", "valueFrom": "arn:aws:secretsmanager:eu-central-1:542585190596:secret:ai-paws-google-staging:google_service_account_file::"},
+                {"name": "GOOGLE_DRIVE_FOLDER_ID", "valueFrom": "arn:aws:secretsmanager:eu-central-1:542585190596:secret:ai-paws-google-staging:google_drive_folder_id::"}
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/ai-paws-prod",
+                    "awslogs-region": "eu-central-1",
+                    "awslogs-stream-prefix": "ecs",
+                    "awslogs-create-group": "true"
+                }
+            },
+            "healthCheck": {
+                "command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+                "interval": 30,
+                "timeout": 5,
+                "retries": 3,
+                "startPeriod": 60
+            },
+            "essential": true
+        }
+    ],
+    "taskRoleArn": "arn:aws:iam::542585190596:role/AIPAWSECSTaskExecutionRole",
+    "executionRoleArn": "arn:aws:iam::542585190596:role/AIPAWSECSTaskExecutionRole",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": ["FARGATE"],
+    "cpu": "512",
+    "memory": "1024"
+}

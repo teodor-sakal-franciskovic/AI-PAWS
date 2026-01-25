@@ -47,3 +47,20 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(roles.router)
+
+
+@app.get("/", tags=["Health"])
+async def root():
+    """Root endpoint."""
+    return {"status": "healthy", "message": "AI-PAWS API is running"}
+
+
+@app.get("/health", tags=["Health"])
+async def health_check():
+    """Health check endpoint for ALB/ECS health checks."""
+    from .settings import settings
+    return {
+        "status": "healthy",
+        "environment": settings.environment,
+        "use_aws_secrets": settings.use_aws_secrets
+    }
