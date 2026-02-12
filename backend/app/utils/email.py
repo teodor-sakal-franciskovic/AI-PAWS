@@ -27,7 +27,7 @@ def get_email_body(row, raw_password):
             Email: {row["Email"]}
             Lozinka: {raw_password}
 
-            Platforma se nalazi na adresi <UNETI-WWW-ADRESU>.
+            Prijavljivanje na platformu možete odraditi na sledećoj adresi: https://d2atyi04ej7qi4.cloudfront.net/login.
 
             Srećan rad!
             """
