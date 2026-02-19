@@ -85,7 +85,7 @@ def request_initial_interactive_feedback(
     logger.info(f"Forming the whole prompt: user {user.id}")
     parser, format_instructions = initialise_format_instructions("LLMFeedbackResponse")
     prompt = generate_whole_prompt(format_instructions)
-    logger.info("Successfully formed the whole prompt")
+    logger.info(f"Successfully formed the whole prompt {prompt}")
 
     logger.info(f"Calling GPT API... user {user.id}")
     try:

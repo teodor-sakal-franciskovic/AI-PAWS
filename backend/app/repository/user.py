@@ -39,6 +39,7 @@ def retrieve_evaluative_submissions(
             Submission.id.label("submission_id"),
             Submission.submitted_at,
             Submission.achieved_points_percentage,
+            Submission.status.label("status"),
             Assignment.name.label("assignment_name"),
             Assignment.start_date.label("assignment_start_date"),
             Assignment.end_date.label("assignment_end_date"),

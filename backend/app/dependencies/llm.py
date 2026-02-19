@@ -8,5 +8,7 @@ def initialise_llm():
         api_key=settings.openai_api_key,
         api_version="2024-12-01-preview",
         deployment_name="gpt-4o",
+        temperature=0,
+        top_p=1,
     )
     return llm

@@ -227,7 +227,6 @@ def retrieve_my_students_evaluative_submissions(
     )
 
 
-# TODO - Mozda slati email studentima?
 @router.put("/submission/{submission_id}/grade")
 def grade_submission(
     submission_id: int,

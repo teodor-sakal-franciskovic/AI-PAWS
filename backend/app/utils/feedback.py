@@ -18,6 +18,7 @@ def generate_initial_interactive_mode_feedbacks(
 ) -> list[Feedback]:
     feedbacks: list[Feedback] = []
     logger.info("Creating feedback objects...")
+    logger.info(f"LLM Rule feedbacks {llm_rule_feedbacks}")
     for rule_id, rule_name, _ in rules:
         logger.info(f"Rule name {rule_name}")
         for llm_rule_feedback in llm_rule_feedbacks:

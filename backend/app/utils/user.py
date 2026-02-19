@@ -1,6 +1,5 @@
 import pandas as pd
 from typing import Dict, List, Any
-from typing import List
 from ..models.role import Role
 from ..models.user import User
 from ..schemas.user import (
@@ -33,6 +32,7 @@ def group_submission_data(sql_user_submissions) -> EvaluativeUsersSubmissionResp
             submission_id,
             submitted_at,
             achieved_points_percentage,
+            status,
             assignment_name,
             assignment_start_date,
             assignment_end_date,
@@ -66,6 +66,7 @@ def group_submission_data(sql_user_submissions) -> EvaluativeUsersSubmissionResp
             submission_obj = {
                 "submission_id": submission_id,
                 "submitted_at": submitted_at,
+                "status": status,
                 "achieved_points_percentage": achieved_points_percentage,
                 "assignment_name": assignment_name,
                 "assignment_start_date": assignment_start_date,

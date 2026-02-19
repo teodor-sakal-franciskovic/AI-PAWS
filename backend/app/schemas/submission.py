@@ -28,6 +28,7 @@ class SubmissionResponse(BaseModel):
 
 class EvaluativeSubmissionSchema(BaseModel):
     submission_id: int
+    status: str
     submitted_at: datetime
     assignment_name: str
     assignment_start_date: datetime
