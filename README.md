@@ -473,6 +473,7 @@ data part is None, only the message gets returned.
       "submissions": [
         {
           "submission_id": 501,
+          "status": "COMPLETED",
           "submitted_at": "2025-07-20T14:30:00",
           "assignment_name": "Literature Review",
           "assignment_start_date": "2025-07-01T08:00:00",
