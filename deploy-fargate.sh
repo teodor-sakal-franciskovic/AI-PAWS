@@ -4,13 +4,15 @@ set -e
 echo "🚀 AI-PAWS Fast Deployment Script"
 echo "=================================="
 
+echo "NOTE: After the deployment, UPDATE the IP of BE in cloudfront distribution of the frontend project"
+
 # Configuration
 # Note: you need to setup your AWSA credentials before this
-# For example i have a setup in my ~/.aws/credentials file 
+# For example i have a setup in my aws profile ~/.aws/credentials file 
 AWS_REGION="eu-central-1"
 ECR_REPOSITORY="542585190596.dkr.ecr.eu-central-1.amazonaws.com/ai-paws-staging"
 ECS_CLUSTER="ai-paws-cluster"
-SERVICE_NAME="ai-paws-secrets-service-jtufapgh"
+SERVICE_NAME="ai-paws-staging-service"
 TASK_DEFINITION_FAMILY="ai-paws-secrets"
 
 # Get current task definition revision
@@ -102,7 +104,7 @@ if [ ! -z "$RUNNING_TASKS" ] && [ "$RUNNING_TASKS" != "None" ]; then
         fi
     done
 else
-    echo "❌ No running tasks found
+    echo "❌ No running tasks found"
 fi
 
 echo ""
