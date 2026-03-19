@@ -287,7 +287,9 @@ def create_students_initial_knowledge(
             students_data: List[Dict[str, Any]] = build_students_data(
                 df, rule_descriptions
             )
-            logger.info("[BACKGROUND] Successfully built students data from the df")
+            logger.info(
+                f"[BACKGROUND] Successfully built students data from the df: {students_data}"
+            )
 
             logger.info("[BACKGROUND] Retrieving prompts...")
             initial_interactive_prompt_template: PromptTemplate = (
@@ -298,7 +300,7 @@ def create_students_initial_knowledge(
             system_prompt = initial_interactive_prompt_template.system_text
             logger.info("[BACKGROUND] Successfully retrieved prompts")
             for data in students_data:
-                index = data.get("index")
+                index = data.get("student_index")
                 logger.info(
                     f"[BACKGROUND] Generating initial student knowledge for student {index}"
                 )
