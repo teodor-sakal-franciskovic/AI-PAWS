@@ -64,6 +64,7 @@ def request_initial_interactive_feedback(
 
     logger.info(f"Retrieving prompt rules for chapter {chapter_name} user {user.id}")
     rules = retrieve_rules_for_chapter(db, chapter_name, include_in_prompt=True)
+    number_of_rules = len(rules)
     logger.info(f"Successfully retrieved prompt rules for chapter {chapter_name}")
 
     logger.info(f"Forming system prompt: user {user.id}")
@@ -87,16 +88,46 @@ def request_initial_interactive_feedback(
     prompt = generate_whole_prompt(format_instructions)
     logger.info(f"Successfully formed the whole prompt {prompt}")
 
+    max_retries = 3
+    attempt = 0
+    response = None
+
     logger.info(f"Calling GPT API... user {user.id}")
-    try:
-        response = call_llm(prompt, llm, parser, system_prompt, user_prompt)
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Something went wrong while calling the GPT API: {e}",
+
+    while attempt < max_retries:
+        try:
+            response = call_llm(prompt, llm, parser, system_prompt, user_prompt)
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Something went wrong while calling the GPT API: {e}",
+            )
+
+        actual_count = len(response.feedback)
+        logger.info(
+            f"Attempt {attempt + 1}: received {actual_count}/{number_of_rules} feedback items"
         )
+
+        if actual_count == number_of_rules:
+            logger.info("LLM response matches expected rule count")
+            break
+
+        attempt += 1
+
+        if attempt < max_retries:
+            logger.warning(
+                f"Mismatch in feedback count. Retrying LLM call... ({attempt}/{max_retries})"
+            )
+
+    if response is not None and len(response.feedback) != number_of_rules:
+        logger.warning(
+            f"LLM response still invalid after {max_retries} attempts. "
+            f"Expected {number_of_rules}, got {len(response.feedback)}. Continuing anyway."
+        )
+
     logger.info("Successfully received the response from the GPT API")
     logger.info(f"Response {response}")
+
     return response
 
 
@@ -176,7 +207,10 @@ def request_evaluation(
 
     logger.info(f"Retrieving prompt rules for chapter {chapter_name} user {user.id}")
     rules = retrieve_rules_for_chapter(db, chapter_name, include_in_prompt=True)
-    logger.info(f"Successfully retrieved prompt rules for chapter {chapter_name}")
+    number_of_rules = len(rules)
+    logger.info(
+        f"Successfully retrieved prompt rules for chapter {chapter_name} -- number of rules {number_of_rules}"
+    )
 
     logger.info(f"Forming system prompt: user {user.id}")
     system_prompt = generate_system_prompt(
@@ -197,16 +231,46 @@ def request_evaluation(
     prompt = generate_whole_prompt(format_instructions)
     logger.info("Successfully formed the whole prompt")
 
+    max_retries = 3
+    attempt = 0
+    response = None
+
     logger.info(f"Calling GPT API... user {user.id}")
-    try:
-        response = call_llm(prompt, llm, parser, system_prompt, user_prompt)
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Something went wrong while calling the GPT API: {e}",
+
+    while attempt < max_retries:
+        try:
+            response = call_llm(prompt, llm, parser, system_prompt, user_prompt)
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Something went wrong while calling the GPT API: {e}",
+            )
+
+        actual_count = len(response.evaluation)
+        logger.info(
+            f"Attempt {attempt + 1}: received {actual_count}/{number_of_rules} rule evaluations"
         )
+
+        if actual_count == number_of_rules:
+            logger.info("LLM response matches expected rule count")
+            break
+
+        attempt += 1
+
+        if attempt < max_retries:
+            logger.warning(
+                f"Mismatch in rule count. Retrying LLM call... ({attempt}/{max_retries})"
+            )
+
+    if response is not None and len(response.evaluation) != number_of_rules:
+        logger.warning(
+            f"LLM response still invalid after {max_retries} attempts. "
+            f"Expected {number_of_rules}, got {len(response.evaluation)}. Continuing anyway."
+        )
+
     logger.info("Successfully received the response from the GPT API")
     logger.info(f"Response {response}")
+
     return response
 
 
