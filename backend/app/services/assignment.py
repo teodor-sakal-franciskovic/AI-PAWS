@@ -3,6 +3,7 @@ import zipfile
 
 from sqlalchemy.orm import Session
 from fastapi.responses import StreamingResponse
+from urllib.parse import quote
 
 from ..models.assignment import Assignment
 from ..models.assignment_group import AssignmentGroup
@@ -178,10 +179,12 @@ def retrieve_submission_files_for_assignment(db: Session, assignment_id: int):
 
     zip_stream.seek(0)
 
+    encoded_filename = quote(f"{assignment.name}.zip")
+
     return StreamingResponse(
         zip_stream,
         media_type="application/x-zip-compressed",
         headers={
-            "Content-Disposition": f'attachment; filename="{assignment.name}.zip"'
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
         },
     )
