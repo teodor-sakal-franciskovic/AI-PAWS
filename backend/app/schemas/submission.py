@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+import base64
+
+from pydantic import BaseModel, ConfigDict
 from typing import Any, List
 from datetime import datetime
 
@@ -19,11 +21,16 @@ class RuleFeedbackSchema(BaseModel):
 class SubmissionResponse(BaseModel):
     id: int
     submitted_at: datetime
-    text: str
+    text: str | None
     achieved_points_percentage: Any
     submission_mode: str
     status: Any
     rule_feedbacks: list[RuleFeedbackSchema]
+    file_bytes: bytes | None = None
+
+    model_config = ConfigDict(
+        json_encoders={bytes: lambda v: base64.b64encode(v).decode("utf-8")}
+    )
 
 
 class EvaluativeSubmissionSchema(BaseModel):

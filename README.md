@@ -89,6 +89,7 @@ A pdf file upload is expected
     "achieved_points_percentage": 32,
     "submission_mode": "Evaluative mode",
     "status": "COMPLETED",
+    "file_bytes": "base-64-string",
     "rule_feedbacks": [
       {
         "feedback_id": 1,
@@ -136,6 +137,7 @@ A pdf file upload is expected
     "achieved_points_percentage": 32,
     "submission_mode": "Evaluative mode",
     "status": "COMPLETED",
+    "file_bytes": "base-64-string",
     "rule_feedbacks": [
       {
         "feedback_id": 1,

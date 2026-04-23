@@ -90,6 +90,7 @@ def retrieve_active_assignments_for_student(db: Session, user: User):
                 submitted_at=submission.submitted_at,
                 status=submission.status,
                 rule_feedbacks=rule_feedbacks,
+                file_bytes=submission.file_bytes,
             )
         finished_assignment_response = SubmittedSubmissionForAssignmentResponse(
             id=assignment.id,
@@ -132,6 +133,7 @@ def retrieve_previous_assignments_for_student(
                 submitted_at=submission.submitted_at,
                 status=submission.status,
                 rule_feedbacks=rule_feedbacks,
+                file_bytes=submission.file_bytes,
             )
         finished_assignment_response = SubmittedSubmissionForAssignmentResponse(
             id=assignment.id,
