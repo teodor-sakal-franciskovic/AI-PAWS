@@ -5,9 +5,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from ..dependencies.db import get_db
-from ..dependencies.chapter import get_retrieve_chapters
 from ..schemas.response import GenericResponse
 from ..schemas.chapter import ChapterResponse
+from ..services.chapter import retrieve_chapters
 
 router = APIRouter(
     prefix="/chapters",
@@ -17,9 +17,8 @@ router = APIRouter(
 
 
 @router.get("/", response_model=GenericResponse)
-def retrieve_chapters(
+def retrieve_chapters_endpoint(
     db: Session = Depends(get_db),
-    retrieve_chapters=Depends(get_retrieve_chapters),
 ):
     chapters: List[ChapterResponse] = retrieve_chapters(db)
     return JSONResponse(

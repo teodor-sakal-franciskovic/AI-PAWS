@@ -1,6 +1,5 @@
 import json
-import pandas as pd
-from typing import Annotated, List, Dict, Any
+from typing import Annotated
 from copy import deepcopy
 
 from fastapi import (
@@ -11,7 +10,6 @@ from fastapi import (
     UploadFile,
     status,
     BackgroundTasks,
-    HTTPException,
 )
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
@@ -21,25 +19,28 @@ from ..dependencies.auth import (
     get_current_active_user_role,
     require_role,
 )
-from ..dependencies.db import get_db, get_new_session
+from ..dependencies.db import get_db
 from ..dependencies.llm import initialise_llm
-from ..dependencies.user import (
-    get_batch_users,
-    get_create_user,
-    get_deactivate_user,
-    get_retrieve_logged_in_user,
-    get_update_user_info,
-    get_update_user_password,
-    get_retrieve_evaluative_submissions_for_ta_students,
-    get_grade_submission,
-    get_retrieve_user_by_id,
-    get_read_pretest_results,
+
+from ..services.user import (
+    batch_users,
+    create_user,
+    deactivate_user,
+    retrieve_logged_in_user,
+    update_user_info,
+    update_user_password,
+    retrieve_evaluative_submissions_for_ta_students,
+    grade_submission,
+    retrieve_user_by_id,
+    read_pretest_results,
 )
-from ..dependencies.historical_profile import (
-    get_insert_historical_profile_snapshot,
-    get_retrieve_updated_student_knowledge_from_evaluative_mode,
+from ..services.submission import retrieve_submission
+from ..services.historical_profile import (
+    insert_historical_profile_snapshot,
+    retrieve_updated_student_knowledge_from_evaluative_mode,
 )
-from ..dependencies.submission import get_retrieve_submission
+
+from ..tasks.user import generate_initial_student_knowledge
 
 from ..llm.schema import LLMUpdatedKnowledge
 from ..models.role import Role
@@ -53,29 +54,6 @@ from ..schemas.user import (
     UserCreate,
     UserResponse,
     EvaluativeUsersSubmissionResponse,
-)
-from ..utils.logger import logger
-
-from ..models.rule import Rule
-from ..models.prompt_template import PromptTemplate
-
-from ..services.historical_profile import insert_initial_student_historical_profile
-
-from ..repository.rule import retrieve_all as retrieve_all_rules
-from ..repository.user import (
-    retrieve_by_index as retrieve_user_by_index,
-)
-from ..repository.prompt_template import (
-    retrieve_by_purpose as retrieve_prompt_template_by_purpose,
-)
-from ..utils.user import (
-    build_students_data,
-)
-from ..llm.prompt import (
-    generate_user_prompt_for_initial_student_knowledge_creation,
-    initialise_format_instructions,
-    generate_whole_prompt,
-    call_llm,
 )
 
 router = APIRouter(
@@ -102,7 +80,6 @@ def register(
         ),
     ],
     db: Session = Depends(get_db),
-    create_user=Depends(get_create_user),
 ) -> GenericResponse:
     created_user: UserResponse = create_user(user, db)
     return JSONResponse(
@@ -114,10 +91,9 @@ def register(
 
 
 @router.get("/me", tags=["users"], response_model=GenericResponse)
-def retrieve_logged_in_user(
+def retrieve_logged_in_user_endpoint(
     current_user: Annotated[User, Depends(get_current_active_user)],
     role: Annotated[Role, Depends(get_current_active_user_role)],
-    retrieve_logged_in_user=Depends(get_retrieve_logged_in_user),
 ) -> GenericResponse:
     logged_in_user: UserResponse = retrieve_logged_in_user(current_user, role)
     return JSONResponse(
@@ -129,15 +105,13 @@ def retrieve_logged_in_user(
 
 
 @router.put("/info", tags=["users"], response_model=GenericResponse)
-def update_user_info(
+def update_user_info_endpoint(
     updated_user_info: Annotated[
-        UpdatedUserInfo,
-        Body(examples=[{"name": "Peter", "surname": "Hecox!"}]),
+        UpdatedUserInfo, Body(examples=[{"name": "Peter", "surname": "Hecox!"}])
     ],
     current_user: Annotated[User, Depends(get_current_active_user)],
     role: Annotated[Role, Depends(get_current_active_user_role)],
     db: Session = Depends(get_db),
-    update_user_info=Depends(get_update_user_info),
 ) -> GenericResponse:
     updated_user: UserResponse = update_user_info(
         current_user, updated_user_info, role, db
@@ -151,7 +125,7 @@ def update_user_info(
 
 
 @router.put("/password", tags=["users"], response_model=GenericResponse)
-def update_user_password(
+def update_user_password_endpoint(
     updated_password: Annotated[
         UpdatedUserPassword,
         Body(
@@ -163,7 +137,6 @@ def update_user_password(
     current_user: Annotated[User, Depends(get_current_active_user)],
     role: Annotated[Role, Depends(get_current_active_user_role)],
     db: Session = Depends(get_db),
-    update_user_password=Depends(get_update_user_password),
 ):
     updated_user: UserResponse = update_user_password(
         current_user, updated_password, role, db
@@ -177,15 +150,12 @@ def update_user_password(
 
 
 @router.delete("/", tags=["users"], status_code=204)
-def deactivate_user(
+def deactivate_user_endpoint(
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
-    deactivate_user=Depends(get_deactivate_user),
 ):
     deactivate_user(current_user, db)
-    return Response(
-        status_code=204,
-    )
+    return Response(status_code=204)
 
 
 @router.post("/batch", tags=["users"], status_code=status.HTTP_201_CREATED)
@@ -193,7 +163,6 @@ def create_users_batch(
     role: Annotated[Role, Depends(require_role("TA"))],
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    batch_users=Depends(get_batch_users),
 ):
     batch_users(file, db)
     return JSONResponse(
@@ -209,9 +178,6 @@ def retrieve_my_students_evaluative_submissions(
     role: Annotated[Role, Depends(require_role("TA"))],
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
-    retrieve_evaluative_submissions_for_ta_students=Depends(
-        get_retrieve_evaluative_submissions_for_ta_students
-    ),
 ):
     evaluative_submissions: EvaluativeUsersSubmissionResponse = (
         retrieve_evaluative_submissions_for_ta_students(db, current_user)
@@ -222,25 +188,18 @@ def retrieve_my_students_evaluative_submissions(
             GenericResponse(
                 message="Successfully retrieved evaluative submissions",
                 data=evaluative_submissions,
-            ).model_dump_json(),
+            ).model_dump_json()
         ),
     )
 
 
 @router.put("/submission/{submission_id}/grade")
-def grade_submission(
+def grade_submission_endpoint(
     submission_id: int,
     body: TAEvaluationGradesRequest,
     role: Annotated[Role, Depends(require_role("TA"))],
     llm=Depends(initialise_llm),
     db: Session = Depends(get_db),
-    grade_submission=Depends(get_grade_submission),
-    retrieve_submission=Depends(get_retrieve_submission),
-    retrieve_updated_student_knowledge_from_evaluative_mode=Depends(
-        get_retrieve_updated_student_knowledge_from_evaluative_mode
-    ),
-    insert_historical_profile_snapshot=Depends(get_insert_historical_profile_snapshot),
-    retrieve_user_by_id=Depends(get_retrieve_user_by_id),
 ):
     submission: Submission = retrieve_submission(db, submission_id)
     initial_graded_status = deepcopy(submission.graded)
@@ -270,71 +229,10 @@ def create_students_initial_knowledge(
     role: Annotated[Role, Depends(require_role("TA"))],
     llm=Depends(initialise_llm),
     file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    read_pretest_results=Depends(get_read_pretest_results),
 ):
     df = read_pretest_results(file)
 
-    def generate_initial_student_knowledge(df: pd.DataFrame):
-        db = get_new_session()
-        try:
-            logger.info("[BACKGROUND] Retrieving all rules...")
-            rules: List[Rule] = retrieve_all_rules(db)
-            rule_descriptions = {r.name: r.description for r in rules}
-            logger.info("[BACKGROUND] Successfully retrieved all rules")
-
-            logger.info("[BACKGROUND] Building students data from the df...")
-            students_data: List[Dict[str, Any]] = build_students_data(
-                df, rule_descriptions
-            )
-            logger.info(
-                f"[BACKGROUND] Successfully built students data from the df: {students_data}"
-            )
-
-            logger.info("[BACKGROUND] Retrieving prompts...")
-            initial_interactive_prompt_template: PromptTemplate = (
-                retrieve_prompt_template_by_purpose(
-                    db, "Initial Student Knowledge Creation"
-                )
-            )
-            system_prompt = initial_interactive_prompt_template.system_text
-            logger.info("[BACKGROUND] Successfully retrieved prompts")
-            for data in students_data:
-                index = data.get("student_index")
-                logger.info(
-                    f"[BACKGROUND] Generating initial student knowledge for student {index}"
-                )
-                user_prompt = (
-                    generate_user_prompt_for_initial_student_knowledge_creation(
-                        initial_interactive_prompt_template, data
-                    )
-                )
-                parser, format_instructions = initialise_format_instructions(
-                    "LLMInitialKnowledgeResponse"
-                )
-                prompt = generate_whole_prompt(format_instructions)
-                logger.info("[BACKGROUND] Calling GPT API...")
-                try:
-                    response = call_llm(prompt, llm, parser, system_prompt, user_prompt)
-                except Exception as e:
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Something went wrong while calling the GPT API: {e}",
-                    )
-                logger.info(
-                    f"[BACKGROUND] Initial student knowledge: {response.initial_student_knowledge}"
-                )
-                user: User = retrieve_user_by_index(db, index)
-                insert_initial_student_historical_profile(
-                    db, user.id, response.initial_student_knowledge
-                )
-        except Exception as e:
-            logger.info(f"[BACKGROUND] An error occurred: {e}")
-            db.rollback()
-        finally:
-            db.close()
-
-    background_tasks.add_task(generate_initial_student_knowledge, df)
+    background_tasks.add_task(generate_initial_student_knowledge, df, llm)
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,

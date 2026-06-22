@@ -8,10 +8,10 @@ from sqlalchemy.orm import Session
 
 from ..dependencies.auth import require_role
 from ..dependencies.db import get_db
-from ..dependencies.group import get_create_group, get_retrieve_active_groups
 from ..models.role import Role
 from ..schemas.group import GroupCreate, GroupResponse
 from ..schemas.response import GenericResponse
+from ..services.group import create_group, retrieve_active_groups
 
 router = APIRouter(
     prefix="/groups",
@@ -21,7 +21,7 @@ router = APIRouter(
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def create_group(
+def create_group_endpoint(
     group: Annotated[
         GroupCreate,
         Body(
@@ -35,11 +35,9 @@ def create_group(
         ),
     ],
     role: Annotated[Role, Depends(require_role("TA"))],
-    create_group=Depends(get_create_group),
     db: Session = Depends(get_db),
 ):
     create_group(group, db)
-
     return JSONResponse(
         status_code=201,
         content=GenericResponse(
@@ -49,9 +47,8 @@ def create_group(
 
 
 @router.get("/", tags=["groups"], response_model=GenericResponse)
-def retrieve_active_groups(
+def retrieve_active_groups_endpoint(
     db: Session = Depends(get_db),
-    retrieve_active_groups=Depends(get_retrieve_active_groups),
 ) -> GenericResponse:
     active_groups: List[GroupResponse] = retrieve_active_groups(db)
     return JSONResponse(
@@ -59,6 +56,6 @@ def retrieve_active_groups(
         content=json.loads(
             GenericResponse(
                 message="Successfully retrieved active groups", data=active_groups
-            ).model_dump_json(),
+            ).model_dump_json()
         ),
     )

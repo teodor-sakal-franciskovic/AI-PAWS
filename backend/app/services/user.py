@@ -1,11 +1,11 @@
 import secrets
 from io import StringIO
+from typing import List
 
 import pandas as pd
 from fastapi import HTTPException, UploadFile
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-from typing import List
 
 from ..models.role import Role
 from ..models.user import User
@@ -19,7 +19,6 @@ from ..repository.user import (
     retrieve_by_email_from_user,
     retrieve_evaluative_submissions,
     retrieve_by_id as retrieve_user_by_id_db,
-    retrieve_by_index as retrieve_user_by_index,
 )
 from ..repository.submission import update_grade
 from ..repository.submission_mode import (
@@ -27,14 +26,10 @@ from ..repository.submission_mode import (
 )
 from ..repository.feedback import update_final_feedback_text
 from ..repository.fulfillment import update_final_fulfillment_value
-from ..repository.prompt_template import (
-    retrieve_by_purpose as retrieve_prompt_template_by_purpose,
-)
 from ..schemas.user import (
     UpdatedUserInfo,
     UpdatedUserPassword,
     UserCreate,
-    EvaluativeUsersSubmissionResponse,
 )
 from ..schemas.submission import (
     TAEvaluationGradesRequest,
@@ -44,10 +39,7 @@ from ..utils.auth import get_password_hash
 from ..utils.db import add, commit_and_refresh
 from ..utils.email import get_email_body, send_email
 from ..utils.logger import logger
-from ..utils.user import (
-    create_user_response,
-    group_submission_data,
-)
+from ..utils.user import create_user_response, group_submission_data
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -109,58 +101,69 @@ def deactivate_user(user: User, db: Session):
     commit_and_refresh(db, user)
 
 
-def batch_users(file: UploadFile, db: Session):
+def _parse_batch_csv(file: UploadFile) -> pd.DataFrame:
     if file.content_type != "text/csv":
         raise HTTPException(status_code=400, detail="File must be a CSV")
-
     try:
         logger.info("Reading students from the uploaded csv...")
         df = pd.read_csv(StringIO(file.file.read().decode("utf-8")))
+        logger.info("Successfully read students from the uploaded csv")
     except Exception:
         raise HTTPException(status_code=400, detail="Failed to parse CSV")
 
-    logger.info("Successfully read students from the uploaded csv")
     required_columns = {"Ime", "Prezime", "Email", "Grupa", "Indeks", "Asistent"}
     if not required_columns.issubset(df.columns):
         raise HTTPException(
             status_code=400,
             detail=f"CSV must contain the following columns: {', '.join(required_columns)}",
         )
+    return df
 
-    logger.info("Retrieving student role info...")
-    student_role = retrieve_role_by_name(db, "Student")
-    if not student_role:
-        raise HTTPException(status_code=404, detail="Student role not found")
-    logger.info("Successfully retrieved student role info")
 
+def _create_batch_user_objects(df: pd.DataFrame, role: Role) -> List[tuple[User, dict]]:
     users = []
     logger.info("Creating student objects...")
     for _, row in df.iterrows():
         raw_password = secrets.token_urlsafe(12)
         hashed_password = pwd_context.hash(raw_password)
-
         user = User(
             email=row["Email"],
             password=hashed_password,
             name=row["Ime"],
             surname=row["Prezime"],
-            role_id=student_role.id,
+            role_id=role.id,
             group_id=int(row["Grupa"]),
             index=row["Indeks"],
             assigned_to_ta=row["Asistent"],
         )
-        users.append(user)
+        users.append((user, {"row": row, "raw_password": raw_password}))
+    return users
 
-        email_body = get_email_body(row, raw_password)
+
+def _send_batch_emails(users: List[tuple[User, dict]]):
+    for _, meta in users:
+        email_body = get_email_body(meta["row"], meta["raw_password"])
         try:
             send_email(
-                row["Email"], "[PIGKUT] Kredencijali za pristup platformi", email_body
+                meta["row"]["Email"],
+                "[PIGKUT] Kredencijali za pristup platformi",
+                email_body,
             )
         except Exception as e:
-            logger.info(f"Failed to send email to {row['email']}: {e}")
+            logger.info(f"Failed to send email to {meta['row']['Email']}: {e}")
+
+
+def batch_users(file: UploadFile, db: Session):
+    df = _parse_batch_csv(file)
+
+    student_role = retrieve_role_by_name(db, "Student")
+    if not student_role:
+        raise HTTPException(status_code=404, detail="Student role not found")
+
+    users = _create_batch_user_objects(df, student_role)
 
     try:
-        db.bulk_save_objects(users)
+        db.bulk_save_objects([user for user, _ in users])
         db.commit()
     except Exception as e:
         raise HTTPException(
@@ -169,51 +172,47 @@ def batch_users(file: UploadFile, db: Session):
         )
 
     logger.info(f"{len(users)} users imported successfully")
+    _send_batch_emails(users)
 
 
 def retrieve_evaluative_submissions_for_ta_students(db: Session, ta: User):
     evaluative_submission_mode: Submission = retrieve_submission_mode_by_name(
         db, "Evaluative mode"
     )
-
     submissions = retrieve_evaluative_submissions(
         db, ta.id, evaluative_submission_mode.id
     )
+    return group_submission_data(submissions)
 
-    evaluative_user_submission_response: EvaluativeUsersSubmissionResponse = (
-        group_submission_data(submissions)
-    )
-    return evaluative_user_submission_response
+
+def _calculate_achieved_percentage(grades: List[TAEvaluationGrade]) -> float:
+    max_points = 2 * len(grades)
+    achieved_points = sum(grade.final_grade for grade in grades)
+    return achieved_points / max_points
 
 
 def grade_submission(
     db: Session, submission_id: int, ta_evaluation_grades: TAEvaluationGradesRequest
 ):
     grades: List[TAEvaluationGrade] = ta_evaluation_grades.evaluation_grades
-    max_points = 2 * len(grades)
-    achieved_points = 0
     for grade in grades:
         update_final_feedback_text(db, grade.feedback_id, grade.final_feedback)
         update_final_fulfillment_value(db, grade.fulfillment_id, grade.final_grade)
-        achieved_points += grade.final_grade
-    achieved_points_percentage = achieved_points / max_points
+    achieved_points_percentage = _calculate_achieved_percentage(grades)
     update_grade(db, submission_id, achieved_points_percentage)
 
 
-def retrieve_user_by_id(db: Session, id: int):
-    user: User = retrieve_user_by_id_db(db, id)
-    return user
+def retrieve_user_by_id(db: Session, id: int) -> User:
+    return retrieve_user_by_id_db(db, id)
 
 
-def read_pretest_results(file: UploadFile):
+def read_pretest_results(file: UploadFile) -> pd.DataFrame:
     if file.content_type != "text/csv":
         raise HTTPException(status_code=400, detail="File must be a CSV")
-
     try:
         logger.info("Reading pretest results from the uploaded csv...")
         df = pd.read_csv(StringIO(file.file.read().decode("utf-8")))
+        logger.info("Successfully read pretest results from the uploaded csv")
     except Exception:
         raise HTTPException(status_code=400, detail="Failed to parse CSV")
-
-    logger.info("Successfully read pretest results from the uploaded csv")
     return df

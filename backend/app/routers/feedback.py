@@ -7,18 +7,18 @@ from sqlalchemy.orm import Session
 from ..dependencies.auth import get_current_active_user, require_role
 from ..dependencies.db import get_db
 from ..dependencies.llm import initialise_llm
-from ..dependencies.historical_profile import (
-    get_retrieve_latest_historical_profile_snapshot,
-)
-from ..dependencies.submission import get_retrieve_submission
-from ..dependencies.feedback import (
-    get_retrieve_feedback,
-    get_request_additional_interactive_feedback,
-    get_update_feedback_with_additional_text,
-    get_invalidate_feedback,
-)
 
-from ..dependencies.historical_profile import get_insert_historical_profile_snapshot
+from ..services.historical_profile import (
+    retrieve_latest_historical_profile_snapshot,
+    insert_historical_profile_snapshot,
+)
+from ..services.submission import retrieve_submission
+from ..services.feedback import (
+    retrieve_feedback,
+    request_additional_interactive_feedback,
+    update_feedback_with_additional_context,
+    invalidate_feedback,
+)
 
 from ..llm.schema import LLMAdditionalFeedbackResponse
 from ..schemas.response import GenericResponse
@@ -38,23 +38,11 @@ router = APIRouter(
 
 
 @router.post("/{feedback_id}/additional", response_model=GenericResponse)
-def request_additional_feedback(
+def request_additional_feedback_endpoint(
     feedback_id: int,
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
     llm=Depends(initialise_llm),
-    retrieve_latest_historical_profile_snapshot=Depends(
-        get_retrieve_latest_historical_profile_snapshot
-    ),
-    retrieve_submission=Depends(get_retrieve_submission),
-    retrieve_feedback=Depends(get_retrieve_feedback),
-    request_additional_interactive_feedback=Depends(
-        get_request_additional_interactive_feedback
-    ),
-    insert_historical_profile_snapshot=Depends(get_insert_historical_profile_snapshot),
-    update_feedback_with_additional_text=Depends(
-        get_update_feedback_with_additional_text
-    ),
 ):
     latest_historical_profile: HistoricalProfile = (
         retrieve_latest_historical_profile_snapshot(db, current_user)
@@ -68,17 +56,14 @@ def request_additional_feedback(
             db, llm, latest_historical_profile, submission, feedback
         )
     )
-
     updated_feedback: InteractiveFeedbackResponse = (
-        update_feedback_with_additional_text(
+        update_feedback_with_additional_context(
             db, feedback.id, llm_additional_feedback_response.additional_explanation
         )
     )
-
     insert_historical_profile_snapshot(
         db, current_user, submission, llm_additional_feedback_response.updated_knowledge
     )
-
     return JSONResponse(
         status_code=200,
         content=GenericResponse(
@@ -89,11 +74,10 @@ def request_additional_feedback(
 
 
 @router.put("/{feedback_id}/invalid", response_model=GenericResponse)
-def invalidate_feedback(
+def invalidate_feedback_endpoint(
     feedback_id: int,
     role: Annotated[Role, Depends(require_role("Student"))],
     db: Session = Depends(get_db),
-    invalidate_feedback=Depends(get_invalidate_feedback),
 ):
     invalidate_feedback(db, feedback_id)
     return JSONResponse(

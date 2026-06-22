@@ -12,7 +12,6 @@ from ..models.submission import Submission
 
 from ..schemas.assignment import (
     AssignmentCreate,
-    AssignmentResponse,
     SubmittedSubmissionForAssignmentResponse,
 )
 from ..schemas.submission import SubmissionResponse
@@ -36,6 +35,44 @@ from ..repository.submission_mode import (
 from ..repository.chapter import retrieve_by_id as retrieve_chapter_by_id
 
 
+def _build_submission_response(db: Session, submission: Submission):
+    if not submission:
+        return {}
+    rule_feedbacks = retrieve_rule_feedbacks_for_submission(db, submission.id)
+    return SubmissionResponse(
+        id=submission.id,
+        text=submission.text,
+        achieved_points_percentage=submission.achieved_points_percentage,
+        submission_mode=retrieve_submission_mode_by_id(
+            db, submission.submission_mode_id
+        ).name,
+        submitted_at=submission.submitted_at,
+        status=submission.status,
+        rule_feedbacks=rule_feedbacks,
+        file_bytes=submission.file_bytes,
+    )
+
+
+def _build_assignment_responses(db: Session, submissions_with_assignments):
+    responses = []
+    for assignment, submission in submissions_with_assignments:
+        responses.append(
+            SubmittedSubmissionForAssignmentResponse(
+                id=assignment.id,
+                name=assignment.name,
+                start_date=assignment.start_date,
+                end_date=assignment.end_date,
+                submission=_build_submission_response(db, submission),
+                submission_mode=retrieve_submission_mode_by_id(
+                    db, assignment.submission_mode_id
+                ).name,
+                chapter_id=assignment.chapter_id,
+                chapter_name=retrieve_chapter_by_id(db, assignment.chapter_id).name,
+            )
+        )
+    return responses
+
+
 def create_assignment(db: Session, body: AssignmentCreate):
     assignment = Assignment(
         name=body.name,
@@ -53,103 +90,34 @@ def create_assignment(db: Session, body: AssignmentCreate):
         )
         db.add(assignment_group)
     db.commit()
-    assignment_response: AssignmentResponse = create_assignment_response(db, assignment)
-    return assignment_response
+    return create_assignment_response(db, assignment)
 
 
 def retrieve_assignments(db: Session):
     logger.info("Retrieving all assignments...")
     assignments: list[Assignment] = retrieve_all(db)
-    assignments_response: list[AssignmentResponse] = [
-        create_assignment_response(db, assignment) for assignment in assignments
-    ]
-    return assignments_response
+    logger.info("Successfully retrieved all assignments")
+    return [create_assignment_response(db, assignment) for assignment in assignments]
 
 
 def retrieve_active_assignments_for_student(db: Session, user: User):
     logger.info(f"Retrieving active assignments for user {user.id}")
-    submissions_with_assignments: list[Assignment, Submission] = (
-        retrieve_active_assignments_for_group(db, user.group_id, user.id)
+    submissions_with_assignments = retrieve_active_assignments_for_group(
+        db, user.group_id, user.id
     )
-    active_assignment_responses = []
-    for assignment, submission in submissions_with_assignments:
-        if not submission:
-            submission_response = {}
-        else:
-            rule_feedbacks = retrieve_rule_feedbacks_for_submission(db, submission.id)
-            logger.info(
-                f"Rule feedbacks {rule_feedbacks} for submission {submission.id}"
-            )
-            submission_response = SubmissionResponse(
-                id=submission.id,
-                text=submission.text,
-                achieved_points_percentage=submission.achieved_points_percentage,
-                submission_mode=retrieve_submission_mode_by_id(
-                    db, submission.submission_mode_id
-                ).name,
-                submitted_at=submission.submitted_at,
-                status=submission.status,
-                rule_feedbacks=rule_feedbacks,
-                file_bytes=submission.file_bytes,
-            )
-        finished_assignment_response = SubmittedSubmissionForAssignmentResponse(
-            id=assignment.id,
-            name=assignment.name,
-            start_date=assignment.start_date,
-            end_date=assignment.end_date,
-            submission=submission_response,
-            submission_mode=retrieve_submission_mode_by_id(
-                db, assignment.submission_mode_id
-            ).name,
-            chapter_id=assignment.chapter_id,
-            chapter_name=retrieve_chapter_by_id(db, assignment.chapter_id).name,
-        )
-        active_assignment_responses.append(finished_assignment_response)
+    responses = _build_assignment_responses(db, submissions_with_assignments)
     logger.info("Successfully retrieved active assignments")
-    return active_assignment_responses
+    return responses
 
 
-def retrieve_previous_assignments_for_student(
-    db: Session,
-    user: User,
-) -> list[SubmittedSubmissionForAssignmentResponse]:
+def retrieve_previous_assignments_for_student(db: Session, user: User):
     logger.info(f"Retrieving finished assignments for the user {user.id}")
-    submissions_with_assignments: list[Assignment, Submission] = (
-        retrieve_past_submissions_with_assignments_for_user(db, user.group_id, user.id)
+    submissions_with_assignments = retrieve_past_submissions_with_assignments_for_user(
+        db, user.group_id, user.id
     )
-    finished_assignment_responses = []
-    for assignment, submission in submissions_with_assignments:
-        if not submission:
-            submission_response = {}
-        else:
-            rule_feedbacks = retrieve_rule_feedbacks_for_submission(db, submission.id)
-            submission_response = SubmissionResponse(
-                id=submission.id,
-                text=submission.text,
-                achieved_points_percentage=submission.achieved_points_percentage,
-                submission_mode=retrieve_submission_mode_by_id(
-                    db, submission.submission_mode_id
-                ).name,
-                submitted_at=submission.submitted_at,
-                status=submission.status,
-                rule_feedbacks=rule_feedbacks,
-                file_bytes=submission.file_bytes,
-            )
-        finished_assignment_response = SubmittedSubmissionForAssignmentResponse(
-            id=assignment.id,
-            name=assignment.name,
-            start_date=assignment.start_date,
-            end_date=assignment.end_date,
-            submission=submission_response,
-            submission_mode=retrieve_submission_mode_by_id(
-                db, assignment.submission_mode_id
-            ).name,
-            chapter_id=assignment.chapter_id,
-            chapter_name=retrieve_chapter_by_id(db, assignment.chapter_id).name,
-        )
-        finished_assignment_responses.append(finished_assignment_response)
+    responses = _build_assignment_responses(db, submissions_with_assignments)
     logger.info("Successfully retrieved finished assignments")
-    return finished_assignment_responses
+    return responses
 
 
 def retrieve_submission_files_for_assignment(db: Session, assignment_id: int):
@@ -171,18 +139,12 @@ def retrieve_submission_files_for_assignment(db: Session, assignment_id: int):
             logger.info(f"TA: {ta.name}")
             if not submission.file_bytes:
                 continue
-
             ta_folder = f"{ta.name}_{ta.surname}" if ta else "Unassigned"
-
             student_filename = f"{student.index}_{student.name}_{student.surname}.pdf"
-            full_path = f"{ta_folder}/{student_filename}"
-
-            zf.writestr(full_path, submission.file_bytes)
+            zf.writestr(f"{ta_folder}/{student_filename}", submission.file_bytes)
 
     zip_stream.seek(0)
-
     encoded_filename = quote(f"{assignment.name}.zip")
-
     return StreamingResponse(
         zip_stream,
         media_type="application/x-zip-compressed",
