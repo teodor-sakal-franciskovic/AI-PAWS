@@ -20,6 +20,14 @@ from .schema import (
 from ..schemas.submission import TAEvaluationGrade
 from ..repository.rule import retrieve_rule_by_feedback_id
 
+_LLM_SCHEMA_MAP = {
+    "LLMFeedbackResponse": LLMFeedbackResponse,
+    "LLMAdditionalFeedbackResponse": LLMAdditionalFeedbackResponse,
+    "LLMEvaluationResponse": LLMEvaluationResponse,
+    "LLMUpdatedKnowledge": LLMUpdatedKnowledge,
+    "LLMInitialKnowledgeResponse": LLMInitialKnowledgeResponse,
+}
+
 
 def generate_system_prompt(
     historical_profile: HistoricalProfile, prompt_template: PromptTemplate
@@ -131,20 +139,11 @@ def call_llm(prompt, llm, parser, system_prompt, user_prompt):
     return response
 
 
-# Extend for each pydantic_object_name
 def _initialise_llm_response_schema(pydantic_object_name: str):
-    if pydantic_object_name == "LLMFeedbackResponse":
-        return LLMFeedbackResponse
-    elif pydantic_object_name == "LLMAdditionalFeedbackResponse":
-        return LLMAdditionalFeedbackResponse
-    elif pydantic_object_name == "LLMEvaluationResponse":
-        return LLMEvaluationResponse
-    elif pydantic_object_name == "LLMUpdatedKnowledge":
-        return LLMUpdatedKnowledge
-    elif pydantic_object_name == "LLMInitialKnowledgeResponse":
-        return LLMInitialKnowledgeResponse
-    else:
+    schema = _LLM_SCHEMA_MAP.get(pydantic_object_name)
+    if not schema:
         raise HTTPException(
             status_code=500,
             detail=f"Can't initialise LLM response schema, unknown pydantic object name: {pydantic_object_name}",
         )
+    return schema

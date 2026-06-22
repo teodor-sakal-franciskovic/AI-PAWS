@@ -41,6 +41,38 @@ from ..utils.logger import logger
 from ..schemas.feedback import InteractiveFeedbackResponse
 
 
+def _call_llm_with_retry(
+    prompt, llm, parser, system_prompt, user_prompt, expected_count: int, count_fn
+):
+    max_retries = 3
+    response = None
+    for attempt in range(max_retries):
+        try:
+            response = call_llm(prompt, llm, parser, system_prompt, user_prompt)
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Something went wrong while calling the GPT API: {e}",
+            )
+        actual_count = count_fn(response)
+        logger.info(
+            f"Attempt {attempt + 1}: received {actual_count}/{expected_count} items"
+        )
+        if actual_count == expected_count:
+            logger.info("LLM response matches expected count")
+            break
+        if attempt < max_retries - 1:
+            logger.warning(
+                f"Mismatch in count. Retrying... ({attempt + 1}/{max_retries})"
+            )
+    if response is not None and count_fn(response) != expected_count:
+        logger.warning(
+            f"LLM response still invalid after {max_retries} attempts. "
+            f"Expected {expected_count}, got {count_fn(response)}. Continuing anyway."
+        )
+    return response
+
+
 def request_initial_interactive_feedback(
     db: Session, llm, submission: Submission, user: User, chapter_name: str
 ) -> LLMFeedbackResponse:
@@ -83,51 +115,20 @@ def request_initial_interactive_feedback(
     )
     logger.info("Successfully formed user prompt")
 
-    logger.info(f"Forming the whole prompt: user {user.id}")
     parser, format_instructions = initialise_format_instructions("LLMFeedbackResponse")
     prompt = generate_whole_prompt(format_instructions)
-    logger.info(f"Successfully formed the whole prompt {prompt}")
-
-    max_retries = 3
-    attempt = 0
-    response = None
 
     logger.info(f"Calling GPT API... user {user.id}")
-
-    while attempt < max_retries:
-        try:
-            response = call_llm(prompt, llm, parser, system_prompt, user_prompt)
-        except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Something went wrong while calling the GPT API: {e}",
-            )
-
-        actual_count = len(response.feedback)
-        logger.info(
-            f"Attempt {attempt + 1}: received {actual_count}/{number_of_rules} feedback items"
-        )
-
-        if actual_count == number_of_rules:
-            logger.info("LLM response matches expected rule count")
-            break
-
-        attempt += 1
-
-        if attempt < max_retries:
-            logger.warning(
-                f"Mismatch in feedback count. Retrying LLM call... ({attempt}/{max_retries})"
-            )
-
-    if response is not None and len(response.feedback) != number_of_rules:
-        logger.warning(
-            f"LLM response still invalid after {max_retries} attempts. "
-            f"Expected {number_of_rules}, got {len(response.feedback)}. Continuing anyway."
-        )
-
-    logger.info("Successfully received the response from the GPT API")
-    logger.info(f"Response {response}")
-
+    response = _call_llm_with_retry(
+        prompt,
+        llm,
+        parser,
+        system_prompt,
+        user_prompt,
+        number_of_rules,
+        lambda r: len(r.feedback),
+    )
+    logger.info(f"Successfully received the response from the GPT API: {response}")
     return response
 
 
@@ -138,7 +139,7 @@ def request_additional_interactive_feedback(
     submission: Submission,
     feedback: Feedback,
 ) -> LLMAdditionalFeedbackResponse:
-    logger.info("Retrieving additonal interactive prompt template...")
+    logger.info("Retrieving additional interactive prompt template...")
     additional_interactive_prompt_template: PromptTemplate = retrieve_by_purpose(
         db, "Additional Interactive"
     )
@@ -169,12 +170,10 @@ def request_additional_interactive_feedback(
     )
     logger.info("Successfully formed user prompt")
 
-    logger.info("Forming the whole prompt...")
     parser, format_instructions = initialise_format_instructions(
         "LLMAdditionalFeedbackResponse"
     )
     prompt = generate_whole_prompt(format_instructions)
-    logger.info("Successfully formed the whole prompt")
 
     logger.info("Calling GPT API...")
     try:
@@ -194,12 +193,6 @@ def request_evaluation(
     logger.info(f"Retrieving evaluation prompt template for user {user.id}...")
     evaluative_prompt_template: PromptTemplate = retrieve_by_purpose(db, "Evaluative")
     logger.info("Successfully retrieved evaluation prompt template")
-
-    logger.info(
-        f"Retrieving knowledge summarisation prompt template for user {user.id}..."
-    )
-
-    logger.info("Successfully retrieved knowledge summarisation prompt template")
 
     logger.info(f"Retrieving the latest historical profile for {user.id}...")
     latest_historical_profile: HistoricalProfile = retrieve_latest(db, user.id)
@@ -224,53 +217,22 @@ def request_evaluation(
     )
     logger.info("Successfully formed user prompt")
 
-    logger.info(f"Forming the whole prompt: user {user.id}")
     parser, format_instructions = initialise_format_instructions(
         "LLMEvaluationResponse"
     )
     prompt = generate_whole_prompt(format_instructions)
-    logger.info("Successfully formed the whole prompt")
-
-    max_retries = 3
-    attempt = 0
-    response = None
 
     logger.info(f"Calling GPT API... user {user.id}")
-
-    while attempt < max_retries:
-        try:
-            response = call_llm(prompt, llm, parser, system_prompt, user_prompt)
-        except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Something went wrong while calling the GPT API: {e}",
-            )
-
-        actual_count = len(response.evaluation)
-        logger.info(
-            f"Attempt {attempt + 1}: received {actual_count}/{number_of_rules} rule evaluations"
-        )
-
-        if actual_count == number_of_rules:
-            logger.info("LLM response matches expected rule count")
-            break
-
-        attempt += 1
-
-        if attempt < max_retries:
-            logger.warning(
-                f"Mismatch in rule count. Retrying LLM call... ({attempt}/{max_retries})"
-            )
-
-    if response is not None and len(response.evaluation) != number_of_rules:
-        logger.warning(
-            f"LLM response still invalid after {max_retries} attempts. "
-            f"Expected {number_of_rules}, got {len(response.evaluation)}. Continuing anyway."
-        )
-
-    logger.info("Successfully received the response from the GPT API")
-    logger.info(f"Response {response}")
-
+    response = _call_llm_with_retry(
+        prompt,
+        llm,
+        parser,
+        system_prompt,
+        user_prompt,
+        number_of_rules,
+        lambda r: len(r.evaluation),
+    )
+    logger.info(f"Successfully received the response from the GPT API: {response}")
     return response
 
 
@@ -303,10 +265,9 @@ def create_feedback_objects_for_evaluative_mode(
     rules = retrieve_rules_for_chapter(db, chapter_name, include_in_prompt=False)
     logger.info(f"Successfully retrieved prompt rules for chapter {chapter_name}")
 
-    evaluations = generate_evaluative_mode_feedbacks_and_fulfillments(
+    return generate_evaluative_mode_feedbacks_and_fulfillments(
         db, rules, llm_rule_evaluations, submission
     )
-    return evaluations
 
 
 def retrieve_feedback(db: Session, feedback_id: int) -> Feedback:
@@ -327,7 +288,7 @@ def update_feedback_with_additional_context(
         f"Successfully updated feedback with additional context: {additional_feedback}"
     )
     rule: Rule = retrieve_rule_by_id(db, feedback.rule_id)
-    feedback_response = InteractiveFeedbackResponse(
+    return InteractiveFeedbackResponse(
         id=feedback.id,
         feedback_text=feedback.feedback_text,
         initially_fulfilled=feedback.initially_fulfilled,
@@ -336,7 +297,6 @@ def update_feedback_with_additional_context(
         additional_feedback_text=feedback.additional_text,
         is_valid=feedback.is_valid,
     )
-    return feedback_response
 
 
 def invalidate_feedback(db: Session, feedback_id: int):

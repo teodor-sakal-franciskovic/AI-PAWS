@@ -5,9 +5,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from ..dependencies.db import get_db
-from ..dependencies.role import get_retrieve_roles
 from ..schemas.response import GenericResponse
 from ..schemas.role import RoleResponse
+from ..services.role import retrieve_roles
 
 router = APIRouter(
     prefix="/roles",
@@ -17,9 +17,8 @@ router = APIRouter(
 
 
 @router.get("/", tags=["roles"], response_model=GenericResponse)
-def retrieve_roles(
+def retrieve_roles_endpoint(
     db: Session = Depends(get_db),
-    retrieve_roles=Depends(get_retrieve_roles),
 ) -> GenericResponse:
     roles: List[RoleResponse] = retrieve_roles(db)
     return JSONResponse(
