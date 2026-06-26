@@ -1,15 +1,18 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
+
+from .rule_group import RuleGroupCreate
 
 
 class AssignmentCreate(BaseModel):
     name: str
     start_date: datetime
     end_date: datetime
-    submission_mode_id: int
     chapter_id: int
-    group_ids: list[int]
+    submission_mode_id: int
+    percentage_of_points_in_course: Optional[float] = None
+    rule_groups: list[RuleGroupCreate]
 
 
 class AssignmentResponse(BaseModel):

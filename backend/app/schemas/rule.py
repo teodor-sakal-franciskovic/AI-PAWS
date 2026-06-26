@@ -10,3 +10,9 @@ class EvaluativeRuleSchema(BaseModel):
     description: str
     feedback: EvaluativeFeedbackSchema
     fulfillment: EvaluativeFulfillmentSchema
+
+
+class RuleCreate(BaseModel):
+    name: str
+    user_description: str
+    include_in_prompt: bool = True

@@ -4,7 +4,7 @@ from sqlalchemy import and_
 from datetime import datetime, timezone
 
 from ..models.assignment import Assignment
-from ..models.assignment_group import AssignmentGroup
+from ..models.course_group import CourseGroup
 from ..models.submission import Submission
 
 
@@ -13,7 +13,7 @@ def retrieve_active_assignments_for_group(db: Session, group_id: int, user_id: i
 
     return (
         db.query(Assignment, Submission)
-        .join(AssignmentGroup, Assignment.id == AssignmentGroup.assignment_id)
+        .join(CourseGroup, Assignment.id == CourseGroup.assignment_id)
         .outerjoin(
             Submission,
             and_(
@@ -24,7 +24,7 @@ def retrieve_active_assignments_for_group(db: Session, group_id: int, user_id: i
         .filter(
             Assignment.start_date <= now,
             Assignment.end_date >= now,
-            AssignmentGroup.group_id == group_id,
+            CourseGroup.group_id == group_id,
         )
         .all()
     )
@@ -37,7 +37,7 @@ def retrieve_past_submissions_with_assignments_for_user(
 
     return (
         db.query(Assignment, Submission)
-        .join(AssignmentGroup, Assignment.id == AssignmentGroup.assignment_id)
+        .join(CourseGroup, Assignment.id == CourseGroup.assignment_id)
         .outerjoin(
             Submission,
             and_(
@@ -47,7 +47,7 @@ def retrieve_past_submissions_with_assignments_for_user(
         )
         .filter(
             Assignment.end_date < now,
-            AssignmentGroup.group_id == group_id,
+            CourseGroup.group_id == group_id,
         )
         .all()
     )

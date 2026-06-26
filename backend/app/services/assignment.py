@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from urllib.parse import quote
 
 from ..models.assignment import Assignment
-from ..models.assignment_group import AssignmentGroup
+from ..models.course_group import CourseGroup
 from ..models.user import User
 from ..models.submission import Submission
 
@@ -85,9 +85,7 @@ def create_assignment(db: Session, body: AssignmentCreate):
     db.commit()
     db.refresh(assignment)
     for group_id in body.group_ids:
-        assignment_group = AssignmentGroup(
-            assignment_id=assignment.id, group_id=group_id
-        )
+        assignment_group = CourseGroup(assignment_id=assignment.id, group_id=group_id)
         db.add(assignment_group)
     db.commit()
     return create_assignment_response(db, assignment)

@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from ..utils.logger import logger
-from ..models.chapter import Chapter
 from ..repository.chapter import retrieve_all, retrieve_by_id
 from ..schemas.chapter import ChapterResponse
 
@@ -42,13 +41,13 @@ def extract_pdf_to_markdown(file_bytes: bytes):
 
 def retrieve_chapters(db: Session):
     logger.info("Retrieving all chapters...")
-    chapters: List[Chapter] = retrieve_all(db)
+    chapters: List = retrieve_all(db)
     logger.info("Successfully retrieved all chapters")
     return [ChapterResponse(id=chapter.id, name=chapter.name) for chapter in chapters]
 
 
 def retrieve_chapter_object_by_id(db: Session, chapter_id: int):
     logger.info(f"Retrieving chapter with id {chapter_id}...")
-    chapter: Chapter = retrieve_by_id(db, chapter_id)
+    chapter = retrieve_by_id(db, chapter_id)
     logger.info("Successfully retrieved the chapter")
     return chapter

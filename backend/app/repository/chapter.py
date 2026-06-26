@@ -1,16 +1,14 @@
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..models.chapter import Chapter
 
-
+# DEPRECATED (ALL)
 def retrieve_all(db: Session):
-    return db.query(Chapter).all()
+    pass
 
 
 def retrieve_by_name(db: Session, name: str):
-    return db.query(Chapter).filter(func.lower(Chapter.name) == name.lower()).first()
+    pass
 
 
 def retrieve_by_id(db: Session, id: int):
-    return db.query(Chapter).filter(Chapter.id == id).first()
+    pass

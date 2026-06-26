@@ -17,22 +17,25 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 from app.main import AcademicWritingSchema  # noqa
-from app.models.chapter import Chapter  # noqa
-from app.models.chapter_grading_aspect import ChapterGradingAspect  # noqa
+from app.models.assignment import Assignment  # noqa
+from app.models.assignment_rule_group import AssignmentRuleGroup  # noqa
+from app.models.course import Course  # noqa
+from app.models.course_group import CourseGroup  # noqa
+from app.models.course_submission_language import CourseSubmissionLanguage  # noqa
 from app.models.feedback import Feedback  # noqa
 from app.models.fulfillment import Fulfillment  # noqa
-from app.models.grading_aspect import GradingAspect  # noqa
 from app.models.group import Group  # noqa
 from app.models.historical_profile import HistoricalProfile  # noqa
+from app.models.language import Language  # noqa
 from app.models.prompt_template import PromptTemplate  # noqa
 from app.models.role import Role  # noqa
 from app.models.rule import Rule  # noqa
 from app.models.rule_feedback_submission import RuleFeedbackSubmission  # noqa
+from app.models.rule_group import RuleGroup  # noqa
 from app.models.submission import Submission  # noqa
 from app.models.submission_mode import SubmissionMode  # noqa
 from app.models.user import User  # noqa
-from app.models.assignment import Assignment  # noqa
-from app.models.assignment_group import AssignmentGroup  # noqa
+from app.models.user_course_points import UserCoursePoints  # noqa
 
 # target_metadata = mymodel.Base.metadata
 target_metadata = [

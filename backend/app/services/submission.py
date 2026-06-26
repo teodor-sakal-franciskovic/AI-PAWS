@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
 
-from ..models.chapter import Chapter
 from ..models.submission import Submission, SubmissionStatus
 from ..models.submission_mode import SubmissionMode
 from ..repository.chapter import retrieve_by_name as retrieve_chapter_by_name
@@ -22,7 +21,7 @@ def save_submission(
     status: str,
     graded: bool = False,
 ):
-    chapter: Chapter = retrieve_chapter_by_name(db, chapter_name)
+    chapter = retrieve_chapter_by_name(db, chapter_name)
     logger.info(f"Chapter for save submission: {chapter}")
     submission_mode: SubmissionMode = retrieve_submission_mode_by_name(
         db, submission_mode_name

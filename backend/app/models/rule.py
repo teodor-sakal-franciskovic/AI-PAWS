@@ -8,10 +8,9 @@ class Rule(AcademicWritingSchema):
 
     id = Column("id", Integer, primary_key=True)
     name = Column("name", String, nullable=False)
-    description = Column("description", String)
+    user_description = Column("user_description", String)
     include_in_prompt = Column(
         "include_in_prompt", Boolean, server_default=text("true")
     )
-    grading_aspect_id = Column(
-        "grading_aspect_id", Integer, ForeignKey("grading_aspect.id")
-    )
+    rule_group_id = Column("rule_group_id", Integer, ForeignKey("rule_group.id"))
+    prompt_description = Column("prompt_description", String)
