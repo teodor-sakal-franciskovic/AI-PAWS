@@ -21,6 +21,7 @@ from app.models.assignment import Assignment  # noqa
 from app.models.assignment_rule_group import AssignmentRuleGroup  # noqa
 from app.models.course import Course  # noqa
 from app.models.course_group import CourseGroup  # noqa
+from app.models.course_instructor import CourseInstructor  # noqa
 from app.models.course_submission_language import CourseSubmissionLanguage  # noqa
 from app.models.feedback import Feedback  # noqa
 from app.models.fulfillment import Fulfillment  # noqa

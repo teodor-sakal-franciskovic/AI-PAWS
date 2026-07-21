@@ -34,7 +34,7 @@ def create_group_endpoint(
             ]
         ),
     ],
-    role: Annotated[Role, Depends(require_role("TA"))],
+    role: Annotated[Role, Depends(require_role("Instructor"))],
     db: Session = Depends(get_db),
 ):
     create_group(group, db)

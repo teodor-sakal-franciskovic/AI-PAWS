@@ -44,7 +44,7 @@ router = APIRouter(
 @router.post("/", response_model=GenericResponse)
 def create_assignment_endpoint(
     body: AssignmentCreate,
-    role: Annotated[Role, Depends(require_role("TA"))],
+    role: Annotated[Role, Depends(require_role("Instructor"))],
     db: Session = Depends(get_db),
 ):
     assignment_response: AssignmentResponse = create_assignment(db, body)
@@ -101,7 +101,7 @@ def retrieve_previous_assignments_endpoint(
 
 @router.get("/")
 def retrieve_all_assignments_endpoint(
-    role: Annotated[Role, Depends(require_role("TA"))],
+    role: Annotated[Role, Depends(require_role("Instructor"))],
     db: Session = Depends(get_db),
 ):
     assignments_response: list[AssignmentResponse] = retrieve_assignments(db)
@@ -119,7 +119,7 @@ def retrieve_all_assignments_endpoint(
 @router.get("/{assignment_id}/submissions/files")
 def retrieve_submission_files_endpoint(
     assignment_id: int,
-    role: Annotated[Role, Depends(require_role("TA"))],
+    role: Annotated[Role, Depends(require_role("Instructor"))],
     db: Session = Depends(get_db),
 ):
     return retrieve_submission_files_for_assignment(db, assignment_id)
