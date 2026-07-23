@@ -25,7 +25,6 @@ from ..tasks.assignment import retrieve_llm_grading, retrieve_llm_feedback
 from ..models.submission import Submission, SubmissionStatus
 from ..models.user import User
 from ..models.role import Role
-from ..models.chapter import Chapter
 
 from ..schemas.response import GenericResponse
 from ..schemas.assignment import (
@@ -45,7 +44,7 @@ router = APIRouter(
 @router.post("/", response_model=GenericResponse)
 def create_assignment_endpoint(
     body: AssignmentCreate,
-    role: Annotated[Role, Depends(require_role("TA"))],
+    role: Annotated[Role, Depends(require_role("Instructor"))],
     db: Session = Depends(get_db),
 ):
     assignment_response: AssignmentResponse = create_assignment(db, body)
@@ -102,7 +101,7 @@ def retrieve_previous_assignments_endpoint(
 
 @router.get("/")
 def retrieve_all_assignments_endpoint(
-    role: Annotated[Role, Depends(require_role("TA"))],
+    role: Annotated[Role, Depends(require_role("Instructor"))],
     db: Session = Depends(get_db),
 ):
     assignments_response: list[AssignmentResponse] = retrieve_assignments(db)
@@ -120,7 +119,7 @@ def retrieve_all_assignments_endpoint(
 @router.get("/{assignment_id}/submissions/files")
 def retrieve_submission_files_endpoint(
     assignment_id: int,
-    role: Annotated[Role, Depends(require_role("TA"))],
+    role: Annotated[Role, Depends(require_role("Instructor"))],
     db: Session = Depends(get_db),
 ):
     return retrieve_submission_files_for_assignment(db, assignment_id)
@@ -139,7 +138,7 @@ def upload_chapter_interactive(
     llm=Depends(initialise_llm),
     file: UploadFile = File(...),
 ):
-    chapter: Chapter = retrieve_chapter_object_by_id(db, chapter_id)
+    chapter = retrieve_chapter_object_by_id(db, chapter_id)
     chapter_name: str = chapter.name.lower()
     file_bytes = anyio.run(file.read)
     markdown_text = extract_pdf_to_markdown(file_bytes)
@@ -180,7 +179,7 @@ def upload_chapter_evaluative(
     llm=Depends(initialise_llm),
     file: UploadFile = File(...),
 ):
-    chapter: Chapter = retrieve_chapter_object_by_id(db, chapter_id)
+    chapter = retrieve_chapter_object_by_id(db, chapter_id)
     chapter_name: str = chapter.name.lower()
     file_bytes = anyio.run(file.read)
     markdown_text = extract_pdf_to_markdown(file_bytes)

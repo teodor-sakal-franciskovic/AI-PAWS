@@ -6,6 +6,7 @@ from .models.base import AcademicWritingSchema  # noqa: F401
 from .routers import (
     auth,
     chapter,
+    course,
     group,
     role,
     user,
@@ -48,6 +49,10 @@ Endpoints associated with the assignments, such as their creation.
 ## Submission modes
 
 Endpoints associated with the submission modes, such as their retrieval.
+
+## Course
+
+Endpoints associated with course creation.
 """
 
 app = FastAPI(
@@ -102,3 +107,4 @@ app.include_router(group.router)
 app.include_router(feedback.router)
 app.include_router(assignment.router)
 app.include_router(submission_mode.router)
+app.include_router(course.router)

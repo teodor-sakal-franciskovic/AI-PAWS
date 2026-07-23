@@ -1,12 +1,30 @@
+from fastapi import UploadFile
+from typing import List
+
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from typing import List
 
 from ..models.group import Group
-from ..schemas.group import GroupCreate, GroupResponse
+from ..repository.group import (
+    retrieve_all_valid,
+    retrieve_by_id,
+    retrieve_groups_grouped_by_course,
+    retrieve_students_in_group,
+    set_user_group,
+    soft_delete_group,
+    update_group,
+)
+from ..repository.user import retrieve_by_id as retrieve_user_by_id
+
+from ..schemas.group import (
+    GroupCreate,
+    GroupResponse,
+    GroupStudentResponse,
+    GroupUpdate,
+)
+from ..services.user import batch_users_for_group
 from ..utils.logger import logger
-from ..repository.group import retrieve_all_valid
 
 
 def create_group(group: GroupCreate, db: Session):
@@ -48,7 +66,7 @@ def create_group(group: GroupCreate, db: Session):
     logger.info(f"Successfully created the group: {db_group}")
 
 
-def retrieve_active_groups(db: Session):
+def retrieve_active_groups(db: Session) -> List[GroupResponse]:
     groups: List[Group] = retrieve_all_valid(db)
     return [
         GroupResponse(
@@ -59,3 +77,80 @@ def retrieve_active_groups(db: Session):
         )
         for group in groups
     ]
+
+
+def get_groups_for_instructor(db: Session, user_id: int) -> List[dict]:
+    return retrieve_groups_grouped_by_course(db, user_id)
+
+
+def modify_group(db: Session, group_id: int, data: GroupUpdate) -> Group:
+    group = retrieve_by_id(db, group_id)
+    if not group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Group not found.",
+        )
+    try:
+        return update_group(db, group, data)
+    except IntegrityError as e:
+        db.rollback()
+        logger.warning(f"IntegrityError while updating group {group_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A group with that name already exists.",
+        )
+
+
+def remove_group(db: Session, group_id: int) -> None:
+    group = retrieve_by_id(db, group_id)
+    if not group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Group not found.",
+        )
+    soft_delete_group(db, group)
+
+
+def _get_group_or_404(db: Session, group_id: int) -> Group:
+    group = retrieve_by_id(db, group_id)
+    if not group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Group not found."
+        )
+    return group
+
+
+def get_students_in_group(db: Session, group_id: int) -> List[GroupStudentResponse]:
+    _get_group_or_404(db, group_id)
+    students = retrieve_students_in_group(db, group_id)
+    return [GroupStudentResponse.model_validate(s) for s in students]
+
+
+def move_student_to_group(db: Session, group_id: int, user_id: int) -> None:
+    _get_group_or_404(db, group_id)
+    user = retrieve_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found."
+        )
+    set_user_group(db, user, group_id)
+
+
+def remove_student_from_group(db: Session, group_id: int, user_id: int) -> None:
+    _get_group_or_404(db, group_id)
+    user = retrieve_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found."
+        )
+    if user.group_id != group_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User does not belong to this group.",
+        )
+    set_user_group(db, user, None)
+
+
+def import_students_into_group(db: Session, group_id: int, file: UploadFile) -> int:
+    _get_group_or_404(db, group_id)
+    return batch_users_for_group(file, group_id, db)

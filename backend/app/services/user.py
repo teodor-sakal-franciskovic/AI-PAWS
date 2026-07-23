@@ -43,6 +43,9 @@ from ..utils.user import create_user_response, group_submission_data
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+BATCH_REQUIRED_COLUMNS = {"Ime", "Prezime", "Email", "Grupa", "Indeks", "Asistent"}
+GROUP_BATCH_REQUIRED_COLUMNS = {"Ime", "Prezime", "Email", "Indeks", "Asistent"}
+
 
 def create_user(user: UserCreate, db: Session):
     role: Role = retrieve_role_by_id(db, user)
@@ -57,20 +60,25 @@ def create_user(user: UserCreate, db: Session):
             detail=f"User with email address {user.email} already exists",
         )
     try:
-        user = User(
+        db_user = User(
             email=user.email,
             password=get_password_hash(user.password),
             name=user.name,
             surname=user.surname,
             role_id=user.role_id,
             group_id=None,
-            assigned_to_ta=None,
+            assigned_to_instructor=None,
         )
-        add(db, user)
-        commit_and_refresh(db, user)
+        add(db, db_user)
+        commit_and_refresh(db, db_user)
     except Exception as e:
-        logger.info(f"e {e}")
-    return create_user_response(user, role)
+        db.rollback()
+        logger.error(f"Failed to create user {user.email}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Something went wrong while creating the user.",
+        )
+    return create_user_response(db_user, role)
 
 
 def retrieve_logged_in_user(user: User, role: Role):
@@ -153,28 +161,6 @@ def _send_batch_emails(users: List[tuple[User, dict]]):
             logger.info(f"Failed to send email to {meta['row']['Email']}: {e}")
 
 
-def batch_users(file: UploadFile, db: Session):
-    df = _parse_batch_csv(file)
-
-    student_role = retrieve_role_by_name(db, "Student")
-    if not student_role:
-        raise HTTPException(status_code=404, detail="Student role not found")
-
-    users = _create_batch_user_objects(df, student_role)
-
-    try:
-        db.bulk_save_objects([user for user, _ in users])
-        db.commit()
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Something went wrong while writing the students to the database: {e}",
-        )
-
-    logger.info(f"{len(users)} users imported successfully")
-    _send_batch_emails(users)
-
-
 def retrieve_evaluative_submissions_for_ta_students(db: Session, ta: User):
     evaluative_submission_mode: Submission = retrieve_submission_mode_by_name(
         db, "Evaluative mode"
@@ -216,3 +202,84 @@ def read_pretest_results(file: UploadFile) -> pd.DataFrame:
     except Exception:
         raise HTTPException(status_code=400, detail="Failed to parse CSV")
     return df
+
+
+def _parse_batch_csv(file: UploadFile, required_columns: set) -> pd.DataFrame:
+    if file.content_type != "text/csv":
+        raise HTTPException(status_code=400, detail="File must be a CSV")
+    try:
+        logger.info("Reading students from the uploaded csv...")
+        df = pd.read_csv(StringIO(file.file.read().decode("utf-8")))
+        logger.info("Successfully read students from the uploaded csv")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Failed to parse CSV")
+
+    if not required_columns.issubset(df.columns):
+        raise HTTPException(
+            status_code=400,
+            detail=f"CSV must contain the following columns: {', '.join(required_columns)}",
+        )
+    return df
+
+
+def _create_batch_user_objects(
+    df: pd.DataFrame, role: Role, group_id: int = None
+) -> List[tuple[User, dict]]:
+    users = []
+    logger.info("Creating student objects...")
+    for _, row in df.iterrows():
+        raw_password = secrets.token_urlsafe(12)
+        hashed_password = pwd_context.hash(raw_password)
+        user = User(
+            email=row["Email"],
+            password=hashed_password,
+            name=row["Ime"],
+            surname=row["Prezime"],
+            role_id=role.id,
+            group_id=group_id if group_id is not None else int(row["Grupa"]),
+            index=row["Indeks"],
+            assigned_to_instructor=row["Asistent"],
+        )
+        users.append((user, {"row": row, "raw_password": raw_password}))
+    return users
+
+
+def _persist_batch_users(db: Session, users: List[tuple[User, dict]]) -> None:
+    try:
+        db.bulk_save_objects([user for user, _ in users])
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Something went wrong while writing the students to the database: {e}",
+        )
+
+
+def batch_users(file: UploadFile, db: Session):
+    df = _parse_batch_csv(file, BATCH_REQUIRED_COLUMNS)
+
+    student_role = retrieve_role_by_name(db, "Student")
+    if not student_role:
+        raise HTTPException(status_code=404, detail="Student role not found")
+
+    users = _create_batch_user_objects(df, student_role)
+    _persist_batch_users(db, users)
+
+    logger.info(f"{len(users)} users imported successfully")
+    _send_batch_emails(users)
+
+
+def batch_users_for_group(file: UploadFile, group_id: int, db: Session) -> int:
+    df = _parse_batch_csv(file, GROUP_BATCH_REQUIRED_COLUMNS)
+
+    student_role = retrieve_role_by_name(db, "Student")
+    if not student_role:
+        raise HTTPException(status_code=404, detail="Student role not found")
+
+    users = _create_batch_user_objects(df, student_role, group_id=group_id)
+    _persist_batch_users(db, users)
+
+    logger.info(f"{len(users)} users imported into group {group_id}")
+    _send_batch_emails(users)
+    return len(users)

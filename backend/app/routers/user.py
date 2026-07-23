@@ -160,7 +160,7 @@ def deactivate_user_endpoint(
 
 @router.post("/batch", tags=["users"], status_code=status.HTTP_201_CREATED)
 def create_users_batch(
-    role: Annotated[Role, Depends(require_role("TA"))],
+    role: Annotated[Role, Depends(require_role("Instructor"))],
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
@@ -175,7 +175,7 @@ def create_users_batch(
 
 @router.get("/my-students/submissions/evaluative")
 def retrieve_my_students_evaluative_submissions(
-    role: Annotated[Role, Depends(require_role("TA"))],
+    role: Annotated[Role, Depends(require_role("Instructor"))],
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
 ):
@@ -197,7 +197,7 @@ def retrieve_my_students_evaluative_submissions(
 def grade_submission_endpoint(
     submission_id: int,
     body: TAEvaluationGradesRequest,
-    role: Annotated[Role, Depends(require_role("TA"))],
+    role: Annotated[Role, Depends(require_role("Instructor"))],
     llm=Depends(initialise_llm),
     db: Session = Depends(get_db),
 ):
@@ -226,7 +226,7 @@ def grade_submission_endpoint(
 @router.post("/initial-knowledge", tags=["users"], status_code=status.HTTP_201_CREATED)
 def create_students_initial_knowledge(
     background_tasks: BackgroundTasks,
-    role: Annotated[Role, Depends(require_role("TA"))],
+    role: Annotated[Role, Depends(require_role("Instructor"))],
     llm=Depends(initialise_llm),
     file: UploadFile = File(...),
 ):

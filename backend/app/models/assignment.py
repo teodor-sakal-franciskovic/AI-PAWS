@@ -1,4 +1,4 @@
-from sqlalchemy import TIMESTAMP, Column, Integer, String, ForeignKey
+from sqlalchemy import TIMESTAMP, Column, Float, Integer, String, ForeignKey
 
 from .base import AcademicWritingSchema
 
@@ -13,4 +13,5 @@ class Assignment(AcademicWritingSchema):
     submission_mode_id = Column(
         "submission_mode_id", Integer, ForeignKey("submission_mode.id")
     )
-    chapter_id = Column("chapter_id", Integer, ForeignKey("chapter.id"))
+    course_id = Column("course_id", Integer, ForeignKey("course.id"))
+    percentage_of_points_in_course = Column("percentage_of_points_in_course", Float)
