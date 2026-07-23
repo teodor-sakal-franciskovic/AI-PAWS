@@ -1,4 +1,4 @@
-from sqlalchemy import TIMESTAMP, Column, Integer, String
+from sqlalchemy import TIMESTAMP, Boolean, Column, Integer, String, text
 
 from .base import AcademicWritingSchema
 
@@ -10,3 +10,6 @@ class Group(AcademicWritingSchema):
     name = Column("name", String, nullable=False)
     valid_from = Column("valid_from", TIMESTAMP, nullable=False)
     valid_until = Column("valid_until", TIMESTAMP, nullable=False)
+    is_deleted = Column(
+        "is_deleted", Boolean, nullable=False, server_default=text("false")
+    )
