@@ -4,15 +4,15 @@ from fastapi.middleware.cors import CORSMiddleware
 # needed for Alembic migrations to work
 from .models.base import AcademicWritingSchema  # noqa: F401
 from .routers import (
+    assignment,
     auth,
     chapter,
     course,
+    feedback,
     group,
     role,
-    user,
-    feedback,
-    assignment,
     submission_mode,
+    user,
 )
 
 description = """
@@ -72,9 +72,19 @@ app = FastAPI(
     redoc_url=None,
 )
 
+"""
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+"""
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
