@@ -35,7 +35,7 @@ def get_rule_group_detail(db: Session, rule_group_id: int) -> dict | None:
         return None
     return {
         **_rule_group_base_fields(db, rule_group),
-        "taken_rule_names": retrieve_taken_names(db, exclude_id=rule_group.id),
+        "taken_rule_group_names": retrieve_taken_names(db, exclude_id=rule_group.id),
     }
 
 

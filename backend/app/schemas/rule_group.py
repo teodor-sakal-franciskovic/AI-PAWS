@@ -42,7 +42,7 @@ class RuleGroupListItemResponse(BaseModel):
 
 
 class RuleGroupDetailResponse(RuleGroupListItemResponse):
-    taken_rule_names: list[str] = []
+    taken_rule_group_names: list[str] = []
 
 
 class RuleGroupNameCheckResponse(BaseModel):

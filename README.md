@@ -700,7 +700,7 @@ data part is None, only the message gets returned.
 ]
 ```
 #### `GET /{rule_group_id}`
-- Same shape as a single object from `GET /`, plus `taken_rule_names` (every other rule group's name, for client-side uniqueness validation).
+- Same shape as a single object from `GET /`, plus `taken_rule_group_names` (every other rule group's name, for client-side uniqueness validation).
 ```json
 {
   "id": 3,
@@ -721,7 +721,7 @@ data part is None, only the message gets returned.
     "surname": "Pantic"
   },
   "updated_by": null,
-  "taken_rule_names": ["JavaScript Coding Style", "Referencing"]
+  "taken_rule_group_names": ["JavaScript Coding Style", "Referencing"]
 }
 ```
 #### `GET /name/{name}`
