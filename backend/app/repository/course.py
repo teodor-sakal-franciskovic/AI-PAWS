@@ -1,6 +1,7 @@
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
+from ..exceptions import ApiError
 from ..models.assignment import Assignment
 from ..models.assignment_rule_group import AssignmentRuleGroup
 from ..models.course import Course
@@ -13,10 +14,29 @@ from ..models.rule import Rule
 from ..models.rule_group import RuleGroup
 from ..models.submission_mode import SubmissionMode
 from ..models.user import User
+from ..repository.rule_group import retrieve_by_ids as retrieve_rule_groups_by_ids
 from ..schemas.course import CourseCreate, CourseUpdate
 
 
+def _validate_rule_group_links(db: Session, assignments: list) -> None:
+    referenced_ids = {
+        link.id for assignment in assignments for link in assignment.rule_groups
+    }
+    if not referenced_ids:
+        return
+    existing = {rg.id for rg in retrieve_rule_groups_by_ids(db, list(referenced_ids))}
+    missing = referenced_ids - existing
+    if missing:
+        raise ApiError(
+            400,
+            "VALIDATION_ERROR",
+            f"Rule group(s) not found: {', '.join(str(i) for i in sorted(missing))}.",
+        )
+
+
 def create_and_populate_course(db: Session, data: CourseCreate, user_id: int) -> Course:
+    _validate_rule_group_links(db, data.assignments)
+
     default_percentage = 100.0 / len(data.assignments) if data.assignments else None
 
     course = Course(
@@ -34,8 +54,11 @@ def create_and_populate_course(db: Session, data: CourseCreate, user_id: int) ->
     for lang_id in data.submission_language_ids:
         db.add(CourseSubmissionLanguage(course_id=course.id, language_id=lang_id))
 
-    for group_id in data.group_ids:
+    for group_id in data.student_group_ids:
         db.add(CourseGroup(course_id=course.id, group_id=group_id))
+
+    for instructor_id in data.instructor_ids:
+        db.add(CourseInstructor(course_id=course.id, instructor_id=instructor_id))
 
     for assignment_data in data.assignments:
         percentage = (
@@ -52,33 +75,14 @@ def create_and_populate_course(db: Session, data: CourseCreate, user_id: int) ->
         db.add(assignment)
         db.flush()
 
-        for rg_data in assignment_data.rule_groups:
-            rule_group = RuleGroup(
-                name=rg_data.name,
-                percentage_of_points_in_assignment=rg_data.percentage_of_points_in_assignment,
-                created_by=user_id,
-                updated_by=user_id,
-            )
-            db.add(rule_group)
-            db.flush()
-
+        for link in assignment_data.rule_groups:
             db.add(
                 AssignmentRuleGroup(
                     assignment_id=assignment.id,
-                    rule_group_id=rule_group.id,
+                    rule_group_id=link.id,
+                    percentage_of_points_in_assignment=link.percentage_of_points_in_assignment,
                 )
             )
-
-            for rule_data in rg_data.rules:
-                db.add(
-                    Rule(
-                        name=rule_data.name,
-                        user_description=rule_data.user_description,
-                        include_in_prompt=rule_data.include_in_prompt,
-                        prompt_description=None,
-                        rule_group_id=rule_group.id,
-                    )
-                )
 
     db.commit()
     db.refresh(course)
@@ -100,33 +104,10 @@ def check_name_exists(db: Session, name: str, exclude_id: int | None = None) -> 
     return db.query(query.exists()).scalar()
 
 
-def retrieve_taken_names(db: Session, exclude_id: int | None = None) -> list[str]:
-    query = db.query(Course.name)
-    if exclude_id is not None:
-        query = query.filter(Course.id != exclude_id)
-    return [name for (name,) in query.all()]
-
-
-def retrieve_rules_for_course(db: Session, course_id: int) -> list[Rule]:
-    return (
-        db.query(Rule)
-        .join(RuleGroup, Rule.rule_group_id == RuleGroup.id)
-        .join(AssignmentRuleGroup, AssignmentRuleGroup.rule_group_id == RuleGroup.id)
-        .join(Assignment, Assignment.id == AssignmentRuleGroup.assignment_id)
-        .filter(
-            Assignment.course_id == course_id,
-            Rule.include_in_prompt == True,
-            Rule.prompt_description == None,
-        )
-        .all()
-    )
-
-
 def update_course(
     db: Session, course: Course, data: CourseUpdate, user_id: int
-) -> tuple[Course, list[int]]:
-    """Returns (updated_course, rule_ids_needing_prompt_generation)."""
-    rules_needing_generation: list[int] = []
+) -> Course:
+    _validate_rule_group_links(db, data.assignments)
 
     course.name = data.name
     course.start_date = data.start_date
@@ -143,7 +124,7 @@ def update_course(
         db.add(CourseSubmissionLanguage(course_id=course.id, language_id=lang_id))
 
     db.query(CourseGroup).filter(CourseGroup.course_id == course.id).delete()
-    for group_id in data.group_ids:
+    for group_id in data.student_group_ids:
         db.add(CourseGroup(course_id=course.id, group_id=group_id))
 
     db.query(CourseInstructor).filter(CourseInstructor.course_id == course.id).delete()
@@ -160,7 +141,7 @@ def update_course(
 
     for assignment in existing_assignments:
         if assignment.id not in incoming_assignment_ids:
-            _delete_assignment_tree(db, assignment)
+            _delete_assignment(db, assignment)
 
     for assignment_data in data.assignments:
         percentage = (
@@ -186,124 +167,48 @@ def update_course(
             db.add(assignment)
             db.flush()
 
-        new_rule_ids = _sync_rule_groups(
-            db, assignment, assignment_data.rule_groups, user_id
-        )
-        rules_needing_generation.extend(new_rule_ids)
+        _sync_rule_group_links(db, assignment, assignment_data.rule_groups)
 
     db.commit()
     db.refresh(course)
-    return course, rules_needing_generation
+    return course
 
 
-def _delete_assignment_tree(db: Session, assignment: Assignment) -> None:
-    """Delete an assignment and its rule groups/rules."""
-    arg_rows = (
-        db.query(AssignmentRuleGroup)
-        .filter(AssignmentRuleGroup.assignment_id == assignment.id)
-        .all()
-    )
-    for arg in arg_rows:
-        db.query(Rule).filter(Rule.rule_group_id == arg.rule_group_id).delete()
-        db.query(RuleGroup).filter(RuleGroup.id == arg.rule_group_id).delete()
+def _delete_assignment(db: Session, assignment: Assignment) -> None:
+    """Delete an assignment and its rule group links (rule groups themselves are
+    reusable and are not owned by the assignment, so they are left intact)."""
     db.query(AssignmentRuleGroup).filter(
         AssignmentRuleGroup.assignment_id == assignment.id
     ).delete()
     db.delete(assignment)
 
 
-def _sync_rule_groups(
-    db: Session, assignment: Assignment, rule_groups_data: list, user_id: int
-) -> list[int]:
-    """Sync rule groups for an assignment. Returns rule IDs needing prompt generation."""
-    rules_needing_generation: list[int] = []
-
-    existing_args = (
-        db.query(AssignmentRuleGroup)
+def _sync_rule_group_links(db: Session, assignment: Assignment, links: list) -> None:
+    existing_args = {
+        arg.rule_group_id: arg
+        for arg in db.query(AssignmentRuleGroup)
         .filter(AssignmentRuleGroup.assignment_id == assignment.id)
         .all()
-    )
-    existing_rg_ids = {arg.rule_group_id for arg in existing_args}
-    existing_rg_map = {
-        rg.id: rg
-        for rg in db.query(RuleGroup).filter(RuleGroup.id.in_(existing_rg_ids)).all()
     }
-    incoming_rg_ids = {rg.id for rg in rule_groups_data if rg.id is not None}
+    incoming_ids = {link.id for link in links}
 
-    for rg_id in existing_rg_ids:
-        if rg_id not in incoming_rg_ids:
-            db.query(Rule).filter(Rule.rule_group_id == rg_id).delete()
-            db.query(AssignmentRuleGroup).filter(
-                AssignmentRuleGroup.rule_group_id == rg_id
-            ).delete()
-            db.query(RuleGroup).filter(RuleGroup.id == rg_id).delete()
+    for rule_group_id, arg in existing_args.items():
+        if rule_group_id not in incoming_ids:
+            db.delete(arg)
 
-    for rg_data in rule_groups_data:
-        if rg_data.id and rg_data.id in existing_rg_map:
-            rule_group = existing_rg_map[rg_data.id]
-            rule_group.name = rg_data.name
-            rule_group.percentage_of_points_in_assignment = (
-                rg_data.percentage_of_points_in_assignment
+    for link in links:
+        if link.id in existing_args:
+            existing_args[link.id].percentage_of_points_in_assignment = (
+                link.percentage_of_points_in_assignment
             )
-            rule_group.updated_by = user_id
         else:
-            rule_group = RuleGroup(
-                name=rg_data.name,
-                percentage_of_points_in_assignment=rg_data.percentage_of_points_in_assignment,
-                created_by=user_id,
-                updated_by=user_id,
-            )
-            db.add(rule_group)
-            db.flush()
             db.add(
                 AssignmentRuleGroup(
                     assignment_id=assignment.id,
-                    rule_group_id=rule_group.id,
+                    rule_group_id=link.id,
+                    percentage_of_points_in_assignment=link.percentage_of_points_in_assignment,
                 )
             )
-
-        new_rule_ids = _sync_rules(db, rule_group, rg_data.rules)
-        rules_needing_generation.extend(new_rule_ids)
-
-    return rules_needing_generation
-
-
-def _sync_rules(db: Session, rule_group: RuleGroup, rules_data: list) -> list[int]:
-    """Sync rules for a rule group. Returns IDs of rules needing prompt generation."""
-    rules_needing_generation: list[int] = []
-
-    existing_rules = db.query(Rule).filter(Rule.rule_group_id == rule_group.id).all()
-    existing_rule_map = {r.id: r for r in existing_rules}
-    incoming_rule_ids = {r.id for r in rules_data if r.id is not None}
-
-    for rule in existing_rules:
-        if rule.id not in incoming_rule_ids:
-            db.delete(rule)
-
-    for rule_data in rules_data:
-        if rule_data.id and rule_data.id in existing_rule_map:
-            rule = existing_rule_map[rule_data.id]
-            description_changed = rule.user_description != rule_data.user_description
-            rule.name = rule_data.name
-            rule.user_description = rule_data.user_description
-            rule.include_in_prompt = rule_data.include_in_prompt
-            if description_changed:
-                rule.prompt_description = None
-                db.flush()
-                rules_needing_generation.append(rule.id)
-        else:
-            rule = Rule(
-                name=rule_data.name,
-                user_description=rule_data.user_description,
-                include_in_prompt=rule_data.include_in_prompt,
-                prompt_description=None,
-                rule_group_id=rule_group.id,
-            )
-            db.add(rule)
-            db.flush()
-            rules_needing_generation.append(rule.id)
-
-    return rules_needing_generation
 
 
 def retrieve_course_details_for_instructor(db: Session, user_id: int) -> list[dict]:
@@ -359,7 +264,7 @@ def retrieve_course_detail(db: Session, course_id: int) -> dict | None:
         .all()
     )
 
-    groups = (
+    student_groups = (
         db.query(Group)
         .join(CourseGroup, CourseGroup.group_id == Group.id)
         .filter(CourseGroup.course_id == course_id)
@@ -399,17 +304,18 @@ def retrieve_course_detail(db: Session, course_id: int) -> dict | None:
             .filter(AssignmentRuleGroup.assignment_id == assignment.id)
             .all()
         )
-        rg_ids = [arg.rule_group_id for arg in arg_rows]
 
         rule_groups = []
-        for rg_id in rg_ids:
-            rg = db.query(RuleGroup).filter(RuleGroup.id == rg_id).first()
-            rules = db.query(Rule).filter(Rule.rule_group_id == rg_id).all()
+        for arg in arg_rows:
+            rg = db.query(RuleGroup).filter(RuleGroup.id == arg.rule_group_id).first()
+            if not rg:
+                continue
+            rules = db.query(Rule).filter(Rule.rule_group_id == rg.id).all()
             rule_groups.append(
                 {
                     "id": rg.id,
                     "name": rg.name,
-                    "percentage_of_points_in_assignment": rg.percentage_of_points_in_assignment,
+                    "percentage_of_points_in_assignment": arg.percentage_of_points_in_assignment,
                     "rules": [
                         {
                             "id": r.id,
@@ -452,23 +358,30 @@ def retrieve_course_detail(db: Session, course_id: int) -> dict | None:
             {"id": l.id, "name": l.name, "short_name": l.short_name}
             for l in submission_languages
         ],
-        "groups": [{"id": g.id, "name": g.name} for g in groups],
-        "created_by": {
-            "id": created_by_user.id,
-            "name": created_by_user.name,
-            "surname": created_by_user.surname,
-        }
-        if created_by_user
-        else None,
-        "updated_by": {
-            "id": updated_by_user.id,
-            "name": updated_by_user.name,
-            "surname": updated_by_user.surname,
-        }
-        if updated_by_user
-        else None,
+        "student_groups": [
+            {"id": g.id, "name": g.name, "short_name": g.short_name}
+            for g in student_groups
+        ],
         "instructors": [
             {"id": u.id, "name": u.name, "surname": u.surname} for u in instructors
         ],
         "assignments": assignment_details,
+        "audit": {
+            "created_at": course.created_at,
+            "created_by": {
+                "id": created_by_user.id,
+                "name": created_by_user.name,
+                "surname": created_by_user.surname,
+            }
+            if created_by_user
+            else None,
+            "updated_at": course.updated_at,
+            "updated_by": {
+                "id": updated_by_user.id,
+                "name": updated_by_user.name,
+                "surname": updated_by_user.surname,
+            }
+            if updated_by_user
+            else None,
+        },
     }

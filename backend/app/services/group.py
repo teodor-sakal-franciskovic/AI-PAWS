@@ -28,6 +28,7 @@ def create_group(group: GroupCreate, db: Session):
         logger.info(f"Creating a group with the received object: {group} ")
         db_group = Group(
             name=group.name,
+            short_name=group.short_name,
             valid_from=group.valid_from,
             valid_until=group.valid_until,
         )
@@ -68,6 +69,7 @@ def retrieve_active_groups(db: Session) -> list[GroupResponse]:
         GroupResponse(
             id=group.id,
             name=group.name,
+            short_name=group.short_name,
             valid_from=group.valid_from,
             valid_until=group.valid_until,
         )

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKey, Integer
+from sqlalchemy import Column, Float, ForeignKey, Integer
 
 from .base import AcademicWritingSchema
 
@@ -11,4 +11,7 @@ class AssignmentRuleGroup(AcademicWritingSchema):
     )
     rule_group_id = Column(
         "rule_group_id", Integer, ForeignKey("rule_group.id"), primary_key=True
+    )
+    percentage_of_points_in_assignment = Column(
+        "percentage_of_points_in_assignment", Float
     )

@@ -63,6 +63,7 @@ def retrieve_groups_grouped_by_course(db: Session, user_id: int) -> List[dict]:
                     {
                         "id": g.id,
                         "name": g.name,
+                        "short_name": g.short_name,
                         "valid_from": g.valid_from,
                         "valid_until": g.valid_until,
                     }

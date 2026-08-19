@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 class GroupCreate(BaseModel):
     name: str
+    short_name: Optional[str] = None
     valid_from: datetime
     valid_until: datetime
 
@@ -19,6 +20,7 @@ class GroupCreate(BaseModel):
 
 class GroupUpdate(BaseModel):
     name: Optional[str] = None
+    short_name: Optional[str] = None
     valid_from: Optional[datetime] = None
     valid_until: Optional[datetime] = None
 
@@ -26,8 +28,20 @@ class GroupUpdate(BaseModel):
 class GroupResponse(BaseModel):
     id: int
     name: str
+    short_name: Optional[str] = None
     valid_from: datetime
     valid_until: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class StudentGroupResponse(BaseModel):
+    """Lightweight group representation used for lookups and nested display."""
+
+    id: int
+    name: str
+    short_name: Optional[str] = None
 
     class Config:
         from_attributes = True

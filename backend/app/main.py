@@ -1,5 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from .exceptions import ApiError
 
 # needed for Alembic migrations to work
 from .models.base import AcademicWritingSchema  # noqa: F401
@@ -104,6 +108,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(ApiError)
+async def api_error_handler(request: Request, exc: ApiError):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"code": exc.code, "message": exc.message},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=400,
+        content={"code": "VALIDATION_ERROR", "message": "Invalid request data."},
+    )
 
 
 @app.get("/")
