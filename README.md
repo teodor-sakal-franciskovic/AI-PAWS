@@ -532,3 +532,245 @@ data part is None, only the message gets returned.
 ```
 data part is None, only the message gets returned.
 ```
+
+# Endpoints V2
+
+- These are the new endpoints introduced as part of the course-creation refactor. They follow the same conventions as above: the same `{ "message": ..., "data": ... }` wrapper, and all timestamps are UTC.
+
+## /courses
+### Brief Summary
+| Method | Path                      | Description                                   | FE Usage                                 |
+|--------|---------------------------|-----------------------------------------------|----------------------------------------------|
+| GET    | `/`            | Retrieval of all courses, unscoped           | Admin-style overview of every course in the system                            |
+| GET    | `/instructor`            | Retrieval of all courses the logged-in instructor created or was added to           | Instructor's "My courses" screen                            |
+| GET    | `/student`            | Retrieval of all courses for the logged-in student's group           | Student's "My courses" screen                            |
+| GET    | `/{course_id}`            | Retrieval of a single course by id, including the names already taken by other courses           | Course edit screen, populating the form when an instructor opens an existing course                            |
+| GET    | `/name/{name}?exclude_id=`            | Check whether a course name is already in use. `exclude_id` is optional and excludes the course being edited from the check           | Called on blur of the "Course name" field when creating/editing a course                            |
+
+### Return Value Examples
+#### `GET /`
+```json
+[
+  {
+    "id": 1,
+    "name": "Web Programming",
+    "start_date": "2026-02-16T00:00:00Z",
+    "end_date": "2026-06-30T23:59:59Z",
+    "max_amount_of_points": 100,
+    "feedback_language": {
+      "id": 1,
+      "name": "Serbian",
+      "short_name": "SR"
+    },
+    "submission_languages": [
+      {
+        "id": 1,
+        "name": "Serbian",
+        "short_name": "SR"
+      }
+    ],
+    "groups": [
+      {
+        "id": 1,
+        "name": "Business Informatics 2026 - Group A"
+      }
+    ],
+    "created_by": {
+      "id": 4,
+      "name": "Ulrich",
+      "surname": "Pantic"
+    },
+    "updated_by": {
+      "id": 4,
+      "name": "Ulrich",
+      "surname": "Pantic"
+    },
+    "instructors": [
+      {
+        "id": 4,
+        "name": "Ulrich",
+        "surname": "Pantic"
+      }
+    ],
+    "assignments": [
+      {
+        "id": 1,
+        "name": "HTML & CSS Fundamentals",
+        "start_date": "2026-03-02T00:00:00Z",
+        "end_date": "2026-03-22T23:59:59Z",
+        "submission_mode_id": 3,
+        "submission_mode_name": "Evaluative mode",
+        "percentage_of_points_in_course": 20,
+        "rule_groups": [
+          {
+            "id": 3,
+            "name": "HTML & CSS",
+            "percentage_of_points_in_assignment": 60,
+            "rules": [
+              {
+                "id": 1,
+                "name": "Semantic Elements",
+                "user_description": "Use semantic tags like main.",
+                "include_in_prompt": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    ...
+  }
+]
+```
+#### `GET /instructor`
+- Same shape (and same objects) as `GET /`, just filtered to the courses the logged-in instructor created or was added to as an instructor.
+#### `GET /student`
+- Same shape (and same objects) as `GET /`, just filtered to the courses whose groups the logged-in student belongs to. Returns an empty array (with `data: []`) if the student isn't in a group.
+#### `GET /{course_id}`
+- Same shape as a single object from `GET /`, plus `taken_course_names` (every other course's name, for client-side uniqueness validation).
+```json
+{
+  "id": 1,
+  "name": "Web Programming",
+  "start_date": "2026-02-16T00:00:00Z",
+  "end_date": "2026-06-30T23:59:59Z",
+  "max_amount_of_points": 100,
+  "feedback_language": {
+    "id": 1,
+    "name": "Serbian",
+    "short_name": "SR"
+  },
+  "submission_languages": [],
+  "groups": [],
+  "created_by": {
+    "id": 4,
+    "name": "Ulrich",
+    "surname": "Pantic"
+  },
+  "updated_by": null,
+  "instructors": [],
+  "assignments": [],
+  "taken_course_names": ["Data Structures", "Mobile Development"]
+}
+```
+#### `GET /name/{name}`
+```json
+{
+  "course_name_used": false
+}
+```
+
+## /rule-groups
+### Brief Summary
+| Method | Path                      | Description                                   | FE Usage                                 |
+|--------|---------------------------|-----------------------------------------------|----------------------------------------------|
+| GET    | `/`            | Retrieval of all rule groups           | Overview/library of all rule groups defined across courses                            |
+| GET    | `/{rule_group_id}`            | Retrieval of a single rule group, including the names already taken by other rule groups           | Rule group edit screen within an assignment                            |
+| GET    | `/name/{name}?exclude_id=`            | Check whether a rule group name is already in use. `exclude_id` is optional and excludes the rule group being edited from the check           | Called on blur of the "Rule group name" field                            |
+
+### Return Value Examples
+#### `GET /`
+```json
+[
+  {
+    "id": 3,
+    "name": "HTML & CSS",
+    "percentage_of_points_in_assignment": 60,
+    "number_of_courses": 1,
+    "rules": [
+      {
+        "id": 1,
+        "name": "Semantic Elements",
+        "user_description": "Use semantic tags like main.",
+        "include_in_prompt": true
+      }
+    ],
+    "created_by": {
+      "id": 4,
+      "name": "Ulrich",
+      "surname": "Pantic"
+    },
+    "updated_by": null
+  },
+  {
+    ...
+  }
+]
+```
+#### `GET /{rule_group_id}`
+- Same shape as a single object from `GET /`, plus `taken_rule_group_names` (every other rule group's name, for client-side uniqueness validation).
+```json
+{
+  "id": 3,
+  "name": "HTML & CSS",
+  "percentage_of_points_in_assignment": 60,
+  "number_of_courses": 1,
+  "rules": [
+    {
+      "id": 1,
+      "name": "Semantic Elements",
+      "user_description": "Use semantic tags like main.",
+      "include_in_prompt": true
+    }
+  ],
+  "created_by": {
+    "id": 4,
+    "name": "Ulrich",
+    "surname": "Pantic"
+  },
+  "updated_by": null,
+  "taken_rule_group_names": ["JavaScript Coding Style", "Referencing"]
+}
+```
+#### `GET /name/{name}`
+```json
+{
+  "rule_name_used": false
+}
+```
+
+## /languages
+### Brief Summary
+| Method | Path                      | Description                                   | FE Usage                                 |
+|--------|---------------------------|-----------------------------------------------|----------------------------------------------|
+| GET    | `/`            | Retrieval of the present languages in the system           | Used for the feedback/submission language selects on the course creation screen                            |
+
+### Return Value Examples
+#### `GET /`
+```json
+[
+  {
+    "id": 1,
+    "name": "Serbian",
+    "short_name": "SR"
+  },
+  {
+    "id": 2,
+    "name": "English",
+    "short_name": "EN"
+  }
+]
+```
+
+## /instructors
+### Brief Summary
+| Method | Path                      | Description                                   | FE Usage                                 |
+|--------|---------------------------|-----------------------------------------------|----------------------------------------------|
+| GET    | `/`            | Retrieval of all active users with the Instructor role           | Used to populate the instructor picker on the course creation screen                            |
+
+### Return Value Examples
+#### `GET /`
+```json
+[
+  {
+    "id": 4,
+    "name": "Ulrich",
+    "surname": "Pantic"
+  },
+  {
+    ...
+  }
+]
+```

@@ -1,7 +1,4 @@
-from fastapi import UploadFile
-from typing import List
-
-from fastapi import HTTPException, status
+from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -16,7 +13,6 @@ from ..repository.group import (
     update_group,
 )
 from ..repository.user import retrieve_by_id as retrieve_user_by_id
-
 from ..schemas.group import (
     GroupCreate,
     GroupResponse,
@@ -32,6 +28,7 @@ def create_group(group: GroupCreate, db: Session):
         logger.info(f"Creating a group with the received object: {group} ")
         db_group = Group(
             name=group.name,
+            short_name=group.short_name,
             valid_from=group.valid_from,
             valid_until=group.valid_until,
         )
@@ -66,12 +63,13 @@ def create_group(group: GroupCreate, db: Session):
     logger.info(f"Successfully created the group: {db_group}")
 
 
-def retrieve_active_groups(db: Session) -> List[GroupResponse]:
-    groups: List[Group] = retrieve_all_valid(db)
+def retrieve_active_groups(db: Session) -> list[GroupResponse]:
+    groups: list[Group] = retrieve_all_valid(db)
     return [
         GroupResponse(
             id=group.id,
             name=group.name,
+            short_name=group.short_name,
             valid_from=group.valid_from,
             valid_until=group.valid_until,
         )
@@ -79,7 +77,7 @@ def retrieve_active_groups(db: Session) -> List[GroupResponse]:
     ]
 
 
-def get_groups_for_instructor(db: Session, user_id: int) -> List[dict]:
+def get_groups_for_instructor(db: Session, user_id: int) -> list[dict]:
     return retrieve_groups_grouped_by_course(db, user_id)
 
 
@@ -120,7 +118,7 @@ def _get_group_or_404(db: Session, group_id: int) -> Group:
     return group
 
 
-def get_students_in_group(db: Session, group_id: int) -> List[GroupStudentResponse]:
+def get_students_in_group(db: Session, group_id: int) -> list[GroupStudentResponse]:
     _get_group_or_404(db, group_id)
     students = retrieve_students_in_group(db, group_id)
     return [GroupStudentResponse.model_validate(s) for s in students]

@@ -16,6 +16,7 @@ from ..repository.role import (
     retrieve_by_name as retrieve_role_by_name,
 )
 from ..repository.user import (
+    retrieve_all_by_role_name,
     retrieve_by_email_from_user,
     retrieve_evaluative_submissions,
     retrieve_by_id as retrieve_user_by_id_db,
@@ -190,6 +191,10 @@ def grade_submission(
 
 def retrieve_user_by_id(db: Session, id: int) -> User:
     return retrieve_user_by_id_db(db, id)
+
+
+def retrieve_instructors(db: Session) -> List[User]:
+    return retrieve_all_by_role_name(db, "Instructor")
 
 
 def read_pretest_results(file: UploadFile) -> pd.DataFrame:

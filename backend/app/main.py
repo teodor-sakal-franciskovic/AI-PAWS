@@ -1,5 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from .exceptions import ApiError
 
 # needed for Alembic migrations to work
 from .models.base import AcademicWritingSchema  # noqa: F401
@@ -10,7 +14,10 @@ from .routers import (
     course,
     feedback,
     group,
+    instructor,
+    language,
     role,
+    rule_group,
     submission_mode,
     user,
 )
@@ -53,6 +60,18 @@ Endpoints associated with the submission modes, such as their retrieval.
 ## Course
 
 Endpoints associated with course creation.
+
+## Rule groups
+
+Endpoints associated with rule groups, such as their retrieval.
+
+## Languages
+
+Endpoints associated with languages, such as their retrieval.
+
+## Instructors
+
+Endpoints associated with instructors, such as their retrieval.
 """
 
 app = FastAPI(
@@ -91,6 +110,22 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(ApiError)
+async def api_error_handler(request: Request, exc: ApiError):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"code": exc.code, "message": exc.message},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=400,
+        content={"code": "VALIDATION_ERROR", "message": "Invalid request data."},
+    )
+
+
 @app.get("/")
 async def health_check():
     """Health check endpoint for App Runner"""
@@ -118,3 +153,6 @@ app.include_router(feedback.router)
 app.include_router(assignment.router)
 app.include_router(submission_mode.router)
 app.include_router(course.router)
+app.include_router(rule_group.router)
+app.include_router(language.router)
+app.include_router(instructor.router)

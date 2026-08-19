@@ -30,7 +30,6 @@ class RuleResponse(BaseModel):
     id: int
     name: str
     user_description: str
-    prompt_description: Optional[str] = None
     include_in_prompt: bool
 
     class Config:
