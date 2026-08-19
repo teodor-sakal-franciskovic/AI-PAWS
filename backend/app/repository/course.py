@@ -1,20 +1,19 @@
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from ..models.course import Course
-from ..models.rule_group import RuleGroup
-from ..models.rule import Rule
 from ..models.assignment import Assignment
-from ..models.course_group import CourseGroup
-from ..models.course_submission_language import CourseSubmissionLanguage
 from ..models.assignment_rule_group import AssignmentRuleGroup
-from ..models.language import Language  # noqa: F401
+from ..models.course import Course
+from ..models.course_group import CourseGroup
+from ..models.course_instructor import CourseInstructor
+from ..models.course_submission_language import CourseSubmissionLanguage
 from ..models.group import Group
+from ..models.language import Language
+from ..models.rule import Rule
+from ..models.rule_group import RuleGroup
 from ..models.submission_mode import SubmissionMode
 from ..models.user import User
-from ..models.course_instructor import CourseInstructor
-from ..schemas.course import CourseUpdate
-from ..schemas.course import CourseCreate
+from ..schemas.course import CourseCreate, CourseUpdate
 
 
 def create_and_populate_course(db: Session, data: CourseCreate, user_id: int) -> Course:
@@ -57,6 +56,8 @@ def create_and_populate_course(db: Session, data: CourseCreate, user_id: int) ->
             rule_group = RuleGroup(
                 name=rg_data.name,
                 percentage_of_points_in_assignment=rg_data.percentage_of_points_in_assignment,
+                created_by=user_id,
+                updated_by=user_id,
             )
             db.add(rule_group)
             db.flush()
@@ -86,6 +87,24 @@ def create_and_populate_course(db: Session, data: CourseCreate, user_id: int) ->
 
 def retrieve_by_id(db: Session, course_id: int) -> Course:
     return db.query(Course).filter(Course.id == course_id).first()
+
+
+def retrieve_all(db: Session) -> list[Course]:
+    return db.query(Course).all()
+
+
+def check_name_exists(db: Session, name: str, exclude_id: int | None = None) -> bool:
+    query = db.query(Course).filter(func.lower(Course.name) == name.lower())
+    if exclude_id is not None:
+        query = query.filter(Course.id != exclude_id)
+    return db.query(query.exists()).scalar()
+
+
+def retrieve_taken_names(db: Session, exclude_id: int | None = None) -> list[str]:
+    query = db.query(Course.name)
+    if exclude_id is not None:
+        query = query.filter(Course.id != exclude_id)
+    return [name for (name,) in query.all()]
 
 
 def retrieve_rules_for_course(db: Session, course_id: int) -> list[Rule]:
@@ -167,7 +186,9 @@ def update_course(
             db.add(assignment)
             db.flush()
 
-        new_rule_ids = _sync_rule_groups(db, assignment, assignment_data.rule_groups)
+        new_rule_ids = _sync_rule_groups(
+            db, assignment, assignment_data.rule_groups, user_id
+        )
         rules_needing_generation.extend(new_rule_ids)
 
     db.commit()
@@ -192,7 +213,7 @@ def _delete_assignment_tree(db: Session, assignment: Assignment) -> None:
 
 
 def _sync_rule_groups(
-    db: Session, assignment: Assignment, rule_groups_data: list
+    db: Session, assignment: Assignment, rule_groups_data: list, user_id: int
 ) -> list[int]:
     """Sync rule groups for an assignment. Returns rule IDs needing prompt generation."""
     rules_needing_generation: list[int] = []
@@ -224,10 +245,13 @@ def _sync_rule_groups(
             rule_group.percentage_of_points_in_assignment = (
                 rg_data.percentage_of_points_in_assignment
             )
+            rule_group.updated_by = user_id
         else:
             rule_group = RuleGroup(
                 name=rg_data.name,
                 percentage_of_points_in_assignment=rg_data.percentage_of_points_in_assignment,
+                created_by=user_id,
+                updated_by=user_id,
             )
             db.add(rule_group)
             db.flush()
@@ -391,7 +415,6 @@ def retrieve_course_detail(db: Session, course_id: int) -> dict | None:
                             "id": r.id,
                             "name": r.name,
                             "user_description": r.user_description,
-                            "prompt_description": r.prompt_description,
                             "include_in_prompt": r.include_in_prompt,
                         }
                         for r in rules

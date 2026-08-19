@@ -3,6 +3,7 @@ from sqlalchemy import select, and_
 
 from ..schemas.user import UserCreate
 from ..models.assignment import Assignment
+from ..models.role import Role
 from ..models.user import User
 from ..models.submission import Submission
 from ..models.rule_feedback_submission import RuleFeedbackSubmission
@@ -25,6 +26,16 @@ def retrieve_by_email(db: Session, username: str):
 
 def retrieve_by_id(db: Session, id: int):
     return db.query(User).filter(User.id == id).first()
+
+
+def retrieve_all_by_role_name(db: Session, role_name: str):
+    return (
+        db.query(User)
+        .join(Role, Role.id == User.role_id)
+        .filter(Role.name == role_name, User.is_active.is_(True))
+        .order_by(User.surname, User.name)
+        .all()
+    )
 
 
 def retrieve_evaluative_submissions(

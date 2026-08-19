@@ -1,11 +1,9 @@
 import json
+from typing import Annotated
 
-from typing import Annotated, List
-
-from fastapi import APIRouter, Body, Depends, File, status, UploadFile
+from fastapi import APIRouter, Body, Depends, File, UploadFile, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-
 
 from ..dependencies.auth import get_current_active_user, require_role
 from ..dependencies.db import get_db
@@ -67,7 +65,7 @@ def create_group_endpoint(
 def retrieve_active_groups_endpoint(
     db: Session = Depends(get_db),
 ) -> GenericResponse:
-    active_groups: List[GroupResponse] = retrieve_active_groups(db)
+    active_groups: list[GroupResponse] = retrieve_active_groups(db)
     return JSONResponse(
         status_code=200,
         content=json.loads(

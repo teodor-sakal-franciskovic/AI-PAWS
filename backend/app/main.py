@@ -10,7 +10,10 @@ from .routers import (
     course,
     feedback,
     group,
+    instructor,
+    language,
     role,
+    rule_group,
     submission_mode,
     user,
 )
@@ -53,6 +56,18 @@ Endpoints associated with the submission modes, such as their retrieval.
 ## Course
 
 Endpoints associated with course creation.
+
+## Rule groups
+
+Endpoints associated with rule groups, such as their retrieval.
+
+## Languages
+
+Endpoints associated with languages, such as their retrieval.
+
+## Instructors
+
+Endpoints associated with instructors, such as their retrieval.
 """
 
 app = FastAPI(
@@ -118,3 +133,6 @@ app.include_router(feedback.router)
 app.include_router(assignment.router)
 app.include_router(submission_mode.router)
 app.include_router(course.router)
+app.include_router(rule_group.router)
+app.include_router(language.router)
+app.include_router(instructor.router)

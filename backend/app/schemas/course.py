@@ -1,15 +1,17 @@
 from datetime import datetime
-from typing import Optional
+
 from pydantic import BaseModel
 
 from .assignment import AssignmentCreate, AssignmentDetailResponse, AssignmentUpdate
+from .language import LanguageResponse
+from .user import UserSummaryResponse
 
 
 class CourseCreate(BaseModel):
     name: str
     start_date: datetime
     end_date: datetime
-    max_amount_of_points: Optional[float] = None
+    max_amount_of_points: float | None = None
     feedback_language_id: int
     submission_language_ids: list[int]
     group_ids: list[int]
@@ -21,7 +23,7 @@ class CourseResponse(BaseModel):
     name: str
     start_date: datetime
     end_date: datetime
-    max_amount_of_points: Optional[float]
+    max_amount_of_points: float | None
     feedback_language_id: int
 
     class Config:
@@ -32,21 +34,12 @@ class CourseUpdate(BaseModel):
     name: str
     start_date: datetime
     end_date: datetime
-    max_amount_of_points: Optional[float] = None
+    max_amount_of_points: float | None = None
     feedback_language_id: int
     submission_language_ids: list[int]
     group_ids: list[int]
     instructor_ids: list[int]
     assignments: list[AssignmentUpdate]
-
-
-class LanguageResponse(BaseModel):
-    id: int
-    name: str
-    short_name: str
-
-    class Config:
-        from_attributes = True
 
 
 class GroupResponse(BaseModel):
@@ -57,28 +50,27 @@ class GroupResponse(BaseModel):
         from_attributes = True
 
 
-class UserSummaryResponse(BaseModel):
-    id: int
-    name: str
-    surname: str
-
-    class Config:
-        from_attributes = True
-
-
 class CourseDetailResponse(BaseModel):
     id: int
     name: str
     start_date: datetime
     end_date: datetime
-    max_amount_of_points: Optional[float] = None
+    max_amount_of_points: float | None = None
     feedback_language: LanguageResponse
     submission_languages: list[LanguageResponse] = []
     groups: list[GroupResponse] = []
-    created_by: Optional[UserSummaryResponse] = None
-    updated_by: Optional[UserSummaryResponse] = None
+    created_by: UserSummaryResponse | None = None
+    updated_by: UserSummaryResponse | None = None
     instructors: list[UserSummaryResponse] = []
     assignments: list[AssignmentDetailResponse] = []
 
     class Config:
         from_attributes = True
+
+
+class CourseWithTakenNamesResponse(CourseDetailResponse):
+    taken_course_names: list[str] = []
+
+
+class CourseNameCheckResponse(BaseModel):
+    course_name_used: bool

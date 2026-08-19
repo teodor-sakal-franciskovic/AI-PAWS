@@ -21,6 +21,15 @@ class UserResponse(BaseModel):
     index: Optional[str] = None
 
 
+class UserSummaryResponse(BaseModel):
+    id: int
+    name: str
+    surname: str
+
+    class Config:
+        from_attributes = True
+
+
 class UpdatedUserInfo(BaseModel):
     name: str
     surname: str
