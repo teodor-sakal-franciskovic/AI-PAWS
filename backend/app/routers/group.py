@@ -2,7 +2,7 @@ import json
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, File, UploadFile, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from ..dependencies.auth import get_current_active_user, require_role
@@ -15,7 +15,7 @@ from ..schemas.group import (
     GroupResponse,
     GroupUpdate,
 )
-from ..schemas.response import GenericResponse
+from ..schemas.response import GenericResponse, IdResponse
 from ..services.group import (
     create_group,
     get_groups_for_instructor,
@@ -53,11 +53,12 @@ def create_group_endpoint(
     role: Annotated[Role, Depends(require_role("Instructor"))],
     db: Session = Depends(get_db),
 ):
-    create_group(group, db)
+    group_id = create_group(group, db)
     return JSONResponse(
         status_code=201,
         content=GenericResponse(
-            message="Successfully created a new group.", data=None
+            message="Successfully created a new group.",
+            data=IdResponse(id=group_id).model_dump(),
         ).model_dump(),
     )
 
@@ -96,36 +97,25 @@ def retrieve_groups_for_instructor_endpoint(
     )
 
 
-@router.put("/{group_id}", response_model=GenericResponse)
+@router.put("/{group_id}", status_code=204)
 def update_group_endpoint(
     group_id: int,
     data: GroupUpdate,
     role: Annotated[Role, Depends(require_role("Instructor"))],
     db: Session = Depends(get_db),
 ):
-    group = modify_group(db, group_id, data)
-    return JSONResponse(
-        status_code=200,
-        content=GenericResponse(
-            message="Successfully updated the group.",
-            data=GroupResponse.model_validate(group).model_dump(mode="json"),
-        ).model_dump(),
-    )
+    modify_group(db, group_id, data)
+    return Response(status_code=204)
 
 
-@router.delete("/{group_id}", response_model=GenericResponse)
+@router.delete("/{group_id}", status_code=204)
 def delete_group_endpoint(
     group_id: int,
     role: Annotated[Role, Depends(require_role("Instructor"))],
     db: Session = Depends(get_db),
 ):
     remove_group(db, group_id)
-    return JSONResponse(
-        status_code=200,
-        content=GenericResponse(
-            message="Successfully deleted the group.", data=None
-        ).model_dump(),
-    )
+    return Response(status_code=204)
 
 
 @router.get("/{group_id}/students", response_model=GenericResponse)

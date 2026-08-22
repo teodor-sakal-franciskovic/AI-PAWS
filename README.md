@@ -266,9 +266,12 @@ data part is None, only the message gets returned.
 - `short_name` is optional.
 ### Return Value Examples
 #### `POST /`
+```json
+{
+  "id": 7
+}
 ```
-data part is None, only the message gets returned.
-```
+- `409 Conflict`, code `GROUP_NAME_ALREADY_EXISTS`, if the name is taken (see the Endpoints V2 error-format note below for the shape of this error).
 #### `GET /`
 ```json
 [
@@ -288,6 +291,10 @@ data part is None, only the message gets returned.
     }
   ]
 ```
+#### `PUT /{group_id}` and `DELETE /{group_id}`
+- `204 No Content` on success.
+- `404 Not Found`, code `GROUP_NOT_FOUND`, if the group doesn't exist.
+- `PUT` also returns `409 Conflict`, code `GROUP_NAME_ALREADY_EXISTS`, if renaming to an already-used name.
 
 ## /roles
 ### Brief Summary
@@ -806,13 +813,44 @@ data part is None, only the message gets returned.
 ```
 
 ## /groups
-- "Student groups" are the `Group` entity documented in the `## /groups` section above (v1) — there's no separate `/student_groups` endpoint.
+- "Student groups" are the same `Group` entity documented in the `## /groups` section above (v1) — there's no separate `/student_groups` endpoint. Both `POST /` and `GET /` now carry the new `short_name` field.
 ### Brief Summary
 | Method | Path                      | Description                                   | FE Usage                                 |
 |--------|---------------------------|-----------------------------------------------|----------------------------------------------|
+| POST   | `/`            | Creation of a new student group, now with an optional `short_name`           | Course creation screen, "create a new student group" flow            |
+| PUT    | `/{group_id}`            | Update of a student group           | Student group edit screen            |
+| DELETE | `/{group_id}`            | Soft-delete of a student group           | Student group list "delete" action            |
 | GET    | `/`            | Retrieval of active student groups (now includes `short_name`)           | Used for the "student groups" select on the course creation screen                            |
 
+### Body Examples
+#### `POST /`
+```json
+{
+    "name": "G_1_2025",
+    "short_name": "G1-2025",
+    "valid_from": "2025-01-01T00:00:00",
+    "valid_until": "2025-12-31T23:59:59"
+}
+```
+- `short_name` is optional.
+#### `PUT /{group_id}`
+- Same shape as `POST /`, but every field is optional — only send what should change.
+
 ### Return Value Examples
+#### `POST /`
+```json
+{
+  "id": 7
+}
+```
+- `409 Conflict`, code `GROUP_NAME_ALREADY_EXISTS`, if the name is taken.
+#### `PUT /{group_id}`
+- `204 No Content` on success.
+- `404 Not Found`, code `GROUP_NOT_FOUND`.
+- `409 Conflict`, code `GROUP_NAME_ALREADY_EXISTS`, if renaming to an already-used name.
+#### `DELETE /{group_id}`
+- `204 No Content` on success.
+- `404 Not Found`, code `GROUP_NOT_FOUND`, if it doesn't exist or was already deleted.
 #### `GET /`
 ```json
 [

@@ -1,9 +1,10 @@
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..exceptions import ApiError
 from ..models.group import Group
 from ..repository.group import (
+    name_exists,
     retrieve_all_valid,
     retrieve_by_id,
     retrieve_groups_grouped_by_course,
@@ -23,7 +24,11 @@ from ..services.user import batch_users_for_group
 from ..utils.logger import logger
 
 
-def create_group(group: GroupCreate, db: Session):
+def create_group(group: GroupCreate, db: Session) -> int:
+    if name_exists(db, group.name):
+        raise ApiError(
+            409, "GROUP_NAME_ALREADY_EXISTS", "A group with this name already exists."
+        )
     try:
         logger.info(f"Creating a group with the received object: {group} ")
         db_group = Group(
@@ -38,21 +43,8 @@ def create_group(group: GroupCreate, db: Session):
         db.commit()
         logger.info("Refreshing...")
         db.refresh(db_group)
-
-    except IntegrityError as e:
-        db.rollback()
-        logger.warning(f"IntegrityError while storing group {group}: {e}")
-        if "duplicate key value violates unique constraint" in str(e.orig):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"A group with name '{group.name}' already exists.",
-            )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database integrity error occurred.",
-        )
-
     except Exception as e:
+        db.rollback()
         logger.info(
             f"An expection occurred while storing the group {group} to the database: {e}"
         )
@@ -61,6 +53,7 @@ def create_group(group: GroupCreate, db: Session):
             detail="Something went wrong while storing the group to the database.",
         )
     logger.info(f"Successfully created the group: {db_group}")
+    return db_group.id
 
 
 def retrieve_active_groups(db: Session) -> list[GroupResponse]:
@@ -84,28 +77,18 @@ def get_groups_for_instructor(db: Session, user_id: int) -> list[dict]:
 def modify_group(db: Session, group_id: int, data: GroupUpdate) -> Group:
     group = retrieve_by_id(db, group_id)
     if not group:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Group not found.",
+        raise ApiError(404, "GROUP_NOT_FOUND", "Group not found.")
+    if data.name is not None and name_exists(db, data.name, exclude_id=group_id):
+        raise ApiError(
+            409, "GROUP_NAME_ALREADY_EXISTS", "A group with this name already exists."
         )
-    try:
-        return update_group(db, group, data)
-    except IntegrityError as e:
-        db.rollback()
-        logger.warning(f"IntegrityError while updating group {group_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A group with that name already exists.",
-        )
+    return update_group(db, group, data)
 
 
 def remove_group(db: Session, group_id: int) -> None:
     group = retrieve_by_id(db, group_id)
     if not group:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Group not found.",
-        )
+        raise ApiError(404, "GROUP_NOT_FOUND", "Group not found.")
     soft_delete_group(db, group)
 
 

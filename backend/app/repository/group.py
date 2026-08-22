@@ -30,6 +30,15 @@ def retrieve_by_id(db: Session, group_id: int) -> Optional[Group]:
     )
 
 
+def name_exists(db: Session, name: str, exclude_id: Optional[int] = None) -> bool:
+    query = db.query(Group).filter(
+        func.lower(Group.name) == name.lower(), Group.is_deleted.is_(False)
+    )
+    if exclude_id is not None:
+        query = query.filter(Group.id != exclude_id)
+    return db.query(query.exists()).scalar()
+
+
 def retrieve_groups_grouped_by_course(db: Session, user_id: int) -> List[dict]:
     courses = (
         db.query(Course)
