@@ -9,6 +9,7 @@ from ..repository.rule_group import (
     retrieve_by_id,
     retrieve_rules_for_rule_group,
     retrieve_user_by_id,
+    soft_delete,
 )
 from ..repository.rule_group import (
     create_rule_group as create_rule_group_repo,
@@ -78,3 +79,10 @@ def update_rule_group(
             "A rule group with this name already exists.",
         )
     return update_rule_group_repo(db, rule_group, data.name, data.rules, user_id)
+
+
+def delete_rule_group(db: Session, rule_group_id: int) -> None:
+    rule_group = retrieve_by_id(db, rule_group_id)
+    if not rule_group:
+        raise ApiError(404, "RULE_GROUP_NOT_FOUND", "Rule group not found.")
+    soft_delete(db, rule_group)

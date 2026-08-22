@@ -17,6 +17,7 @@ from ..schemas.rule_group import (
 )
 from ..services.rule_group import (
     create_rule_group,
+    delete_rule_group,
     get_all_rule_groups,
     get_rule_group_detail,
     is_name_available,
@@ -119,4 +120,14 @@ def update_rule_group_endpoint(
     rule_ids = update_rule_group(db, rule_group_id, data, current_user.id)
     if rule_ids:
         background_tasks.add_task(generate_prompt_descriptions, rule_group_id)
+    return Response(status_code=204)
+
+
+@router.delete("/{rule_group_id}", status_code=204)
+def delete_rule_group_endpoint(
+    rule_group_id: int,
+    role: Annotated[Role, Depends(require_role("Instructor"))],
+    db: Session = Depends(get_db),
+):
+    delete_rule_group(db, rule_group_id)
     return Response(status_code=204)

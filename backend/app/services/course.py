@@ -9,6 +9,7 @@ from ..repository.course import (
     retrieve_course_detail,
     retrieve_course_details_for_instructor,
     retrieve_course_details_for_student,
+    soft_delete,
 )
 from ..repository.course import (
     update_course as update_course_repo,
@@ -58,3 +59,10 @@ def is_course_name_available(
     db: Session, name: str, exclude_id: int | None = None
 ) -> bool:
     return not check_name_exists(db, name, exclude_id)
+
+
+def delete_course(db: Session, course_id: int) -> None:
+    course = retrieve_by_id(db, course_id)
+    if not course:
+        raise ApiError(404, "COURSE_NOT_FOUND", "Course not found.")
+    soft_delete(db, course)

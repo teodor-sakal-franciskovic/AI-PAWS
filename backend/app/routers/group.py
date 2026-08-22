@@ -43,6 +43,7 @@ def create_group_endpoint(
             examples=[
                 {
                     "name": "G_1_2025",
+                    "short_name": "G1-2025",
                     "valid_from": "2025-01-01T00:00:00",
                     "valid_until": "2025-12-31T23:59:59",
                 }

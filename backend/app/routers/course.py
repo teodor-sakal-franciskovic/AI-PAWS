@@ -1,4 +1,4 @@
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse, Response
@@ -13,6 +13,7 @@ from ..schemas.course import CourseCreate, CourseDetailResponse, CourseUpdate
 from ..schemas.response import GenericResponse, IdResponse, NameAvailabilityResponse
 from ..services.course import (
     create_course,
+    delete_course,
     get_all_courses,
     get_course_by_id,
     get_courses_for_instructor,
@@ -110,7 +111,7 @@ def get_all_courses_endpoint(
 def check_course_name_endpoint(
     role: Annotated[Role, Depends(require_role("Instructor"))],
     name: str,
-    exclude_id: Optional[int] = None,
+    exclude_id: int | None = None,
     db: Session = Depends(get_db),
 ):
     available = is_course_name_available(db, name, exclude_id)
@@ -150,4 +151,14 @@ def update_course_endpoint(
     db: Session = Depends(get_db),
 ):
     update_course(db, course_id, data, current_user.id)
+    return Response(status_code=204)
+
+
+@router.delete("/{course_id}", status_code=204)
+def delete_course_endpoint(
+    course_id: int,
+    role: Annotated[Role, Depends(require_role("Instructor"))],
+    db: Session = Depends(get_db),
+):
+    delete_course(db, course_id)
     return Response(status_code=204)

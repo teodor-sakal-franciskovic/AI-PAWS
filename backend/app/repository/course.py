@@ -34,8 +34,28 @@ def _validate_rule_group_links(db: Session, assignments: list) -> None:
         )
 
 
+def _validate_language_ids(
+    db: Session, feedback_language_id: int, submission_language_ids: list
+) -> None:
+    referenced_ids = {feedback_language_id, *submission_language_ids}
+    existing = {
+        lang.id
+        for lang in db.query(Language)
+        .filter(Language.id.in_(referenced_ids), Language.is_active.is_(True))
+        .all()
+    }
+    missing = referenced_ids - existing
+    if missing:
+        raise ApiError(
+            400,
+            "VALIDATION_ERROR",
+            f"Language(s) not found: {', '.join(str(i) for i in sorted(missing))}.",
+        )
+
+
 def create_and_populate_course(db: Session, data: CourseCreate, user_id: int) -> Course:
     _validate_rule_group_links(db, data.assignments)
+    _validate_language_ids(db, data.feedback_language_id, data.submission_language_ids)
 
     default_percentage = 100.0 / len(data.assignments) if data.assignments else None
 
@@ -90,24 +110,36 @@ def create_and_populate_course(db: Session, data: CourseCreate, user_id: int) ->
 
 
 def retrieve_by_id(db: Session, course_id: int) -> Course:
-    return db.query(Course).filter(Course.id == course_id).first()
+    return (
+        db.query(Course)
+        .filter(Course.id == course_id, Course.is_active.is_(True))
+        .first()
+    )
 
 
 def retrieve_all(db: Session) -> list[Course]:
-    return db.query(Course).all()
+    return db.query(Course).filter(Course.is_active.is_(True)).all()
 
 
 def check_name_exists(db: Session, name: str, exclude_id: int | None = None) -> bool:
-    query = db.query(Course).filter(func.lower(Course.name) == name.lower())
+    query = db.query(Course).filter(
+        func.lower(Course.name) == name.lower(), Course.is_active.is_(True)
+    )
     if exclude_id is not None:
         query = query.filter(Course.id != exclude_id)
     return db.query(query.exists()).scalar()
+
+
+def soft_delete(db: Session, course: Course) -> None:
+    course.is_active = False
+    db.commit()
 
 
 def update_course(
     db: Session, course: Course, data: CourseUpdate, user_id: int
 ) -> Course:
     _validate_rule_group_links(db, data.assignments)
+    _validate_language_ids(db, data.feedback_language_id, data.submission_language_ids)
 
     course.name = data.name
     course.start_date = data.start_date
@@ -198,7 +230,9 @@ def _sync_rule_group_links(db: Session, assignment: Assignment, links: list) -> 
 
     for link in links:
         if link.id in existing_args:
-            existing_args[link.id].percentage_of_points_in_assignment = (
+            existing_args[
+                link.id
+            ].percentage_of_points_in_assignment = (
                 link.percentage_of_points_in_assignment
             )
         else:
@@ -226,10 +260,11 @@ def retrieve_courses_for_instructor(db: Session, user_id: int) -> list[Course]:
         db.query(Course)
         .outerjoin(CourseInstructor, CourseInstructor.course_id == Course.id)
         .filter(
+            Course.is_active.is_(True),
             or_(
                 Course.created_by == user_id,
                 CourseInstructor.instructor_id == user_id,
-            )
+            ),
         )
         .distinct()
         .all()
@@ -240,13 +275,17 @@ def retrieve_courses_for_student(db: Session, group_id: int) -> list[Course]:
     return (
         db.query(Course)
         .join(CourseGroup, CourseGroup.course_id == Course.id)
-        .filter(CourseGroup.group_id == group_id)
+        .filter(CourseGroup.group_id == group_id, Course.is_active.is_(True))
         .all()
     )
 
 
 def retrieve_course_detail(db: Session, course_id: int) -> dict | None:
-    course = db.query(Course).filter(Course.id == course_id).first()
+    course = (
+        db.query(Course)
+        .filter(Course.id == course_id, Course.is_active.is_(True))
+        .first()
+    )
     if not course:
         return None
 

@@ -1,4 +1,14 @@
-from sqlalchemy import Column, Float, ForeignKey, Integer, String, TIMESTAMP, func
+from sqlalchemy import (
+    TIMESTAMP,
+    Boolean,
+    Column,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    func,
+    text,
+)
 
 from .base import AcademicWritingSchema
 
@@ -14,6 +24,9 @@ class Course(AcademicWritingSchema):
     )
     start_date = Column("start_date", TIMESTAMP, nullable=False)
     end_date = Column("end_date", TIMESTAMP, nullable=False)
+    is_active = Column(
+        "is_active", Boolean, nullable=False, server_default=text("true")
+    )
     created_by = Column("created_by", Integer, ForeignKey("user.id"))
     created_at = Column(
         "created_at", TIMESTAMP, nullable=False, server_default=func.now()

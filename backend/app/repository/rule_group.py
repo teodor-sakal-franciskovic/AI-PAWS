@@ -9,17 +9,25 @@ from ..models.user import User
 
 
 def retrieve_all(db: Session) -> list[RuleGroup]:
-    return db.query(RuleGroup).all()
+    return db.query(RuleGroup).filter(RuleGroup.is_active.is_(True)).all()
 
 
 def retrieve_by_id(db: Session, rule_group_id: int) -> RuleGroup | None:
-    return db.query(RuleGroup).filter(RuleGroup.id == rule_group_id).first()
+    return (
+        db.query(RuleGroup)
+        .filter(RuleGroup.id == rule_group_id, RuleGroup.is_active.is_(True))
+        .first()
+    )
 
 
 def retrieve_by_ids(db: Session, rule_group_ids: list[int]) -> list[RuleGroup]:
     if not rule_group_ids:
         return []
-    return db.query(RuleGroup).filter(RuleGroup.id.in_(rule_group_ids)).all()
+    return (
+        db.query(RuleGroup)
+        .filter(RuleGroup.id.in_(rule_group_ids), RuleGroup.is_active.is_(True))
+        .all()
+    )
 
 
 def retrieve_rules_for_rule_group(db: Session, rule_group_id: int) -> list[Rule]:
@@ -43,10 +51,17 @@ def retrieve_user_by_id(db: Session, user_id: int | None) -> User | None:
 
 
 def name_exists(db: Session, name: str, exclude_id: int | None = None) -> bool:
-    query = db.query(RuleGroup).filter(func.lower(RuleGroup.name) == name.lower())
+    query = db.query(RuleGroup).filter(
+        func.lower(RuleGroup.name) == name.lower(), RuleGroup.is_active.is_(True)
+    )
     if exclude_id is not None:
         query = query.filter(RuleGroup.id != exclude_id)
     return db.query(query.exists()).scalar()
+
+
+def soft_delete(db: Session, rule_group: RuleGroup) -> None:
+    rule_group.is_active = False
+    db.commit()
 
 
 def create_rule_group(

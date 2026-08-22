@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from ..dependencies.auth import require_role
@@ -9,7 +9,7 @@ from ..dependencies.db import get_db
 from ..models.role import Role
 from ..schemas.language import LanguageResponse
 from ..schemas.response import GenericResponse
-from ..services.language import retrieve_languages
+from ..services.language import delete_language, retrieve_languages
 
 router = APIRouter(
     prefix="/languages",
@@ -31,3 +31,13 @@ def retrieve_languages_endpoint(
             data=[language.model_dump(mode="json") for language in languages],
         ).model_dump(),
     )
+
+
+@router.delete("/{language_id}", status_code=204)
+def delete_language_endpoint(
+    language_id: int,
+    role: Annotated[Role, Depends(require_role("Instructor"))],
+    db: Session = Depends(get_db),
+):
+    delete_language(db, language_id)
+    return Response(status_code=204)
