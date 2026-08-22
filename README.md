@@ -251,17 +251,19 @@ data part is None, only the message gets returned.
 | Method | Path                      | Description                                   | FE Usage                                 |
 |--------|---------------------------|-----------------------------------------------|----------------------------------------------|
 | POST    | `/`            | Creation of a new group           | TA screen for creating student groups for a specific semester                            |
-| GET    | `/`            | Retrieval of active groups           | Used for the TA assignment creation                            |
+| GET    | `/`            | Retrieval of active groups           | Used for the TA assignment creation, and for the "student groups" select on the course creation screen (V2)                            |
  
 ### Body Examples
 #### `POST /`
 ```json
 {
     "name": "G_1_2025",
+    "short_name": "G1-2025",
     "valid_from": "2025-01-01T00:00:00",
     "valid_until": "2025-12-31T23:59:59",
 }
 ```
+- `short_name` is optional.
 ### Return Value Examples
 #### `POST /`
 ```
@@ -273,12 +275,14 @@ data part is None, only the message gets returned.
     {
       "id": 1,
       "name": "G_1_2025",
+      "short_name": "G1-2025",
       "valid_from": "2025-01-01T00:00:00",
       "valid_until": "2025-12-31T23:59:59"
     },
     {
       "id": 3,
       "name": "G_1_2024-6",
+      "short_name": null,
       "valid_from": "2024-01-01T00:00:00",
       "valid_until": "2026-12-31T23:59:59"
     }
@@ -535,19 +539,81 @@ data part is None, only the message gets returned.
 
 # Endpoints V2
 
-- These are the new endpoints introduced as part of the course-creation refactor. They follow the same conventions as above: the same `{ "message": ..., "data": ... }` wrapper, and all timestamps are UTC.
+- These endpoints replace the initial course-creation cut. Success responses still use the same `{ "message": ..., "data": ... }` wrapper as above, and all timestamps are UTC.
+- Rule groups are now independent, reusable entities managed entirely through `/rule-groups` — creating or updating a course only *links* to existing rule groups by id (with a per-assignment `percentage_of_points_in_assignment`); it never creates, edits, or deletes a rule group or its rules.
+- **Errors** on these endpoints do *not* use the `{ "message", "data" }` wrapper. They return the raw body shown in each section below, e.g.:
+```json
+{
+  "code": "COURSE_NOT_FOUND",
+  "message": "Course not found."
+}
+```
+  `400` is always `VALIDATION_ERROR` (invalid/missing request data, or a request that references a deleted/nonexistent related record), `404` is a `*_NOT_FOUND` code, `409` is a `*_ALREADY_EXISTS` code (duplicate name).
+- `PUT` and `DELETE` endpoints below return `204 No Content` (no body) on success.
+- **Deletes are soft deletes** (an `is_active` flag under the hood). A deleted course/rule group/language: disappears from its `GET` list and `GET /{id}` (404s), frees up its name for reuse, and can no longer be newly *referenced* (linking a deleted rule group into a course, or a deleted language as a course's feedback/submission language, is rejected with `400 VALIDATION_ERROR`). It is **not** retroactively removed from courses that already reference it — those keep displaying it as before.
 
 ## /courses
 ### Brief Summary
 | Method | Path                      | Description                                   | FE Usage                                 |
 |--------|---------------------------|-----------------------------------------------|----------------------------------------------|
-| GET    | `/`            | Retrieval of all courses, unscoped           | Admin-style overview of every course in the system                            |
+| POST   | `/`            | Creation of a new course and its (new) assignments. All `assignments` must be new (no `id`); all `assignments[].rule_groups` must reference existing rule groups by `id` — this endpoint never creates/edits rule groups | Course creation screen |
+| PUT    | `/{course_id}`            | Update of a course. `assignments` with `id` are updated, without `id` are created, and existing ones not sent are deleted. `rule_groups` are always references to existing rule groups by `id` | Course edit screen |
+| DELETE | `/{course_id}`            | Soft-delete of a course           | Course list "delete" action                            |
+| GET    | `/`            | Retrieval of all (active) courses, unscoped           | Admin-style overview of every course in the system                            |
 | GET    | `/instructor`            | Retrieval of all courses the logged-in instructor created or was added to           | Instructor's "My courses" screen                            |
 | GET    | `/student`            | Retrieval of all courses for the logged-in student's group           | Student's "My courses" screen                            |
-| GET    | `/{course_id}`            | Retrieval of a single course by id, including the names already taken by other courses           | Course edit screen, populating the form when an instructor opens an existing course                            |
-| GET    | `/name/{name}?exclude_id=`            | Check whether a course name is already in use. `exclude_id` is optional and excludes the course being edited from the check           | Called on blur of the "Course name" field when creating/editing a course                            |
+| GET    | `/{course_id}`            | Retrieval of a single course by id           | Course edit screen, populating the form when an instructor opens an existing course                            |
+| GET    | `/check-name?name=&exclude_id=`            | Check whether a course name is already in use. `exclude_id` is optional and excludes the course being edited from the check           | Called on blur of the "Course name" field when creating/editing a course                            |
+
+### Body Examples
+#### `POST /`
+```json
+{
+  "name": "Web Programming",
+  "start_date": "2026-02-16T00:00:00.000Z",
+  "end_date": "2026-06-30T23:59:59.000Z",
+  "max_amount_of_points": 100,
+  "feedback_language_id": 1,
+  "submission_language_ids": [1, 2],
+  "student_group_ids": [1, 3],
+  "instructor_ids": [1, 4],
+  "assignments": [
+    {
+      "name": "HTML & CSS Fundamentals",
+      "start_date": "2026-03-02T00:00:00.000Z",
+      "end_date": "2026-03-22T23:59:59.000Z",
+      "submission_mode_id": 3,
+      "percentage_of_points_in_course": 20,
+      "rule_groups": [
+        { "id": 3, "percentage_of_points_in_assignment": 60 }
+      ]
+    }
+  ]
+}
+```
+#### `PUT /{course_id}`
+- Same shape as `POST /`, except assignments may carry an `id` (update) or omit it (create); any existing assignment not present in the payload is deleted.
 
 ### Return Value Examples
+#### `POST /`
+```json
+{
+  "id": 17
+}
+```
+- `409 Conflict`, code `COURSE_NAME_ALREADY_EXISTS`, if the name is taken.
+- `400 Bad Request`, code `VALIDATION_ERROR`, if the body is invalid, or references a rule group / language id that doesn't exist (or has been deleted).
+
+#### `PUT /{course_id}`
+- `204 No Content` on success.
+- `404 Not Found`, code `COURSE_NOT_FOUND`.
+- `409 Conflict`, code `COURSE_NAME_ALREADY_EXISTS`.
+- `400 Bad Request`, code `VALIDATION_ERROR` (same cases as `POST /`).
+
+#### `DELETE /{course_id}`
+- `204 No Content` on success.
+- `404 Not Found`, code `COURSE_NOT_FOUND`, if it doesn't exist or was already deleted.
+
 #### `GET /`
 ```json
 [
@@ -569,22 +635,13 @@ data part is None, only the message gets returned.
         "short_name": "SR"
       }
     ],
-    "groups": [
+    "student_groups": [
       {
         "id": 1,
-        "name": "Business Informatics 2026 - Group A"
+        "name": "Business Informatics 2026 - Group A",
+        "short_name": "BI 2026-A"
       }
     ],
-    "created_by": {
-      "id": 4,
-      "name": "Ulrich",
-      "surname": "Pantic"
-    },
-    "updated_by": {
-      "id": 4,
-      "name": "Ulrich",
-      "surname": "Pantic"
-    },
     "instructors": [
       {
         "id": 4,
@@ -617,7 +674,13 @@ data part is None, only the message gets returned.
           }
         ]
       }
-    ]
+    ],
+    "audit": {
+      "created_at": "2026-08-19T10:42:15Z",
+      "created_by": { "id": 4, "name": "Ulrich", "surname": "Pantic" },
+      "updated_at": "2026-08-20T14:17:03Z",
+      "updated_by": { "id": 7, "name": "Ana", "surname": "Petrovic" }
+    }
   },
   {
     ...
@@ -629,55 +692,87 @@ data part is None, only the message gets returned.
 #### `GET /student`
 - Same shape (and same objects) as `GET /`, just filtered to the courses whose groups the logged-in student belongs to. Returns an empty array (with `data: []`) if the student isn't in a group.
 #### `GET /{course_id}`
-- Same shape as a single object from `GET /`, plus `taken_course_names` (every other course's name, for client-side uniqueness validation).
+- Same shape as a single object from `GET /`.
+- `404 Not Found`, code `COURSE_NOT_FOUND`, if the id doesn't exist or was deleted.
+#### `GET /check-name`
 ```json
 {
-  "id": 1,
-  "name": "Web Programming",
-  "start_date": "2026-02-16T00:00:00Z",
-  "end_date": "2026-06-30T23:59:59Z",
-  "max_amount_of_points": 100,
-  "feedback_language": {
-    "id": 1,
-    "name": "Serbian",
-    "short_name": "SR"
-  },
-  "submission_languages": [],
-  "groups": [],
-  "created_by": {
-    "id": 4,
-    "name": "Ulrich",
-    "surname": "Pantic"
-  },
-  "updated_by": null,
-  "instructors": [],
-  "assignments": [],
-  "taken_course_names": ["Data Structures", "Mobile Development"]
+  "name_available": true
 }
 ```
-#### `GET /name/{name}`
-```json
-{
-  "course_name_used": false
-}
-```
+- `name_available: true` means the name is free to use (this includes names freed up by a deleted course).
 
 ## /rule-groups
 ### Brief Summary
 | Method | Path                      | Description                                   | FE Usage                                 |
 |--------|---------------------------|-----------------------------------------------|----------------------------------------------|
-| GET    | `/`            | Retrieval of all rule groups           | Overview/library of all rule groups defined across courses                            |
-| GET    | `/{rule_group_id}`            | Retrieval of a single rule group, including the names already taken by other rule groups           | Rule group edit screen within an assignment                            |
-| GET    | `/name/{name}?exclude_id=`            | Check whether a rule group name is already in use. `exclude_id` is optional and excludes the rule group being edited from the check           | Called on blur of the "Rule group name" field                            |
+| POST   | `/`            | Creation of a new, standalone rule group and its rules           | Rule group creation screen, or "create a new rule group" flow while building a course |
+| PUT    | `/{rule_group_id}`            | Update of a rule group. Rules with `id` are updated, without `id` are created, existing ones not sent are deleted | Rule group edit screen |
+| DELETE | `/{rule_group_id}`            | Soft-delete of a rule group           | Rule group library "delete" action                            |
+| GET    | `/`            | Retrieval of all (active) rule groups           | Library of all rule groups, for picking existing ones when building a course            |
+| GET    | `/{rule_group_id}`            | Retrieval of a single rule group           | Rule group edit screen            |
+| GET    | `/check-name?name=&exclude_id=`            | Check whether a rule group name is already in use. `exclude_id` is optional and excludes the rule group being edited from the check           | Called on blur of the "Rule group name" field                            |
+
+### Body Examples
+#### `POST /`
+```json
+{
+  "name": "JavaScript Coding Style",
+  "rules": [
+    {
+      "name": "Use Const",
+      "user_description": "Always prefer const",
+      "include_in_prompt": true
+    }
+  ]
+}
+```
+#### `PUT /{rule_group_id}`
+```json
+{
+  "name": "JavaScript Coding Standards",
+  "rules": [
+    {
+      "id": 11,
+      "name": "Use Const",
+      "user_description": "Prefer const whenever possible",
+      "include_in_prompt": true
+    },
+    {
+      "name": "Use Strict Equality",
+      "user_description": "Prefer === over ==",
+      "include_in_prompt": true
+    }
+  ]
+}
+```
 
 ### Return Value Examples
+#### `POST /`
+```json
+{
+  "id": 17
+}
+```
+- `409 Conflict`, code `RULE_GROUP_NAME_ALREADY_EXISTS`, if the name is taken.
+- `400 Bad Request`, code `VALIDATION_ERROR`, if the body is invalid.
+
+#### `PUT /{rule_group_id}`
+- `204 No Content` on success.
+- `404 Not Found`, code `RULE_GROUP_NOT_FOUND`.
+- `409 Conflict`, code `RULE_GROUP_NAME_ALREADY_EXISTS`.
+
+#### `DELETE /{rule_group_id}`
+- `204 No Content` on success.
+- `404 Not Found`, code `RULE_GROUP_NOT_FOUND`, if it doesn't exist or was already deleted.
+- Deleting a rule group does not affect courses/assignments that already link it — it just stops appearing in `GET /` and can't be linked into *new* courses (`POST`/`PUT /courses` will 400 if you try).
+
 #### `GET /`
 ```json
 [
   {
     "id": 3,
     "name": "HTML & CSS",
-    "percentage_of_points_in_assignment": 60,
     "number_of_courses": 1,
     "rules": [
       {
@@ -687,57 +782,65 @@ data part is None, only the message gets returned.
         "include_in_prompt": true
       }
     ],
-    "created_by": {
-      "id": 4,
-      "name": "Ulrich",
-      "surname": "Pantic"
-    },
-    "updated_by": null
+    "audit": {
+      "created_at": "2026-08-19T10:42:15Z",
+      "created_by": { "id": 12, "name": "Ulrich", "surname": "Pantic" },
+      "updated_at": "2026-08-20T14:17:03Z",
+      "updated_by": { "id": 7, "name": "Ana", "surname": "Petrovic" }
+    }
   },
   {
     ...
   }
 ]
 ```
+- Note: `percentage_of_points_in_assignment` is not part of the rule group anymore (a rule group can be linked to several assignments, each with its own percentage) — it only appears nested inside a course's `assignments[].rule_groups[]` (see `GET /courses/{course_id}`).
 #### `GET /{rule_group_id}`
-- Same shape as a single object from `GET /`, plus `taken_rule_group_names` (every other rule group's name, for client-side uniqueness validation).
+- Same shape as a single object from `GET /`.
+- `404 Not Found`, code `RULE_GROUP_NOT_FOUND`, if the id doesn't exist or was deleted.
+#### `GET /check-name`
 ```json
 {
-  "id": 3,
-  "name": "HTML & CSS",
-  "percentage_of_points_in_assignment": 60,
-  "number_of_courses": 1,
-  "rules": [
-    {
-      "id": 1,
-      "name": "Semantic Elements",
-      "user_description": "Use semantic tags like main.",
-      "include_in_prompt": true
-    }
-  ],
-  "created_by": {
-    "id": 4,
-    "name": "Ulrich",
-    "surname": "Pantic"
-  },
-  "updated_by": null,
-  "taken_rule_group_names": ["JavaScript Coding Style", "Referencing"]
+  "name_available": false
 }
 ```
-#### `GET /name/{name}`
+
+## /groups
+- "Student groups" are the `Group` entity documented in the `## /groups` section above (v1) — there's no separate `/student_groups` endpoint.
+### Brief Summary
+| Method | Path                      | Description                                   | FE Usage                                 |
+|--------|---------------------------|-----------------------------------------------|----------------------------------------------|
+| GET    | `/`            | Retrieval of active student groups (now includes `short_name`)           | Used for the "student groups" select on the course creation screen                            |
+
+### Return Value Examples
+#### `GET /`
 ```json
-{
-  "rule_name_used": false
-}
+[
+  {
+    "id": 1,
+    "name": "Business Informatics 2026 - Group A",
+    "short_name": "BI 2026-A",
+    "valid_from": "2025-01-01T00:00:00",
+    "valid_until": "2025-12-31T23:59:59"
+  },
+  {
+    ...
+  }
+]
 ```
 
 ## /languages
 ### Brief Summary
 | Method | Path                      | Description                                   | FE Usage                                 |
 |--------|---------------------------|-----------------------------------------------|----------------------------------------------|
-| GET    | `/`            | Retrieval of the present languages in the system           | Used for the feedback/submission language selects on the course creation screen                            |
+| DELETE | `/{language_id}`            | Soft-delete of a language           | Language admin "delete" action                            |
+| GET    | `/`            | Retrieval of the present (active) languages in the system           | Used for the feedback/submission language selects on the course creation screen                            |
 
 ### Return Value Examples
+#### `DELETE /{language_id}`
+- `204 No Content` on success.
+- `404 Not Found`, code `LANGUAGE_NOT_FOUND`, if it doesn't exist or was already deleted.
+- Deleting a language does not affect courses that already reference it as their feedback/submission language — it just stops appearing in `GET /` and can't be referenced by *new*/updated courses (`POST`/`PUT /courses` will 400 if you try).
 #### `GET /`
 ```json
 [
