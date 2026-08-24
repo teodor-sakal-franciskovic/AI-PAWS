@@ -74,9 +74,6 @@ def create_and_populate_course(db: Session, data: CourseCreate, user_id: int) ->
     for lang_id in data.submission_language_ids:
         db.add(CourseSubmissionLanguage(course_id=course.id, language_id=lang_id))
 
-    for group_id in data.student_group_ids:
-        db.add(CourseGroup(course_id=course.id, group_id=group_id))
-
     for instructor_id in data.instructor_ids:
         db.add(CourseInstructor(course_id=course.id, instructor_id=instructor_id))
 
@@ -154,10 +151,6 @@ def update_course(
     ).delete()
     for lang_id in data.submission_language_ids:
         db.add(CourseSubmissionLanguage(course_id=course.id, language_id=lang_id))
-
-    db.query(CourseGroup).filter(CourseGroup.course_id == course.id).delete()
-    for group_id in data.student_group_ids:
-        db.add(CourseGroup(course_id=course.id, group_id=group_id))
 
     db.query(CourseInstructor).filter(CourseInstructor.course_id == course.id).delete()
     for instructor_id in data.instructor_ids:

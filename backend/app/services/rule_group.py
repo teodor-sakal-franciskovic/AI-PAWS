@@ -1,18 +1,20 @@
 from sqlalchemy.orm import Session
 
 from ..exceptions import ApiError
+from ..models.course import Course
 from ..models.rule_group import RuleGroup
 from ..repository.rule_group import (
-    count_courses_for_rule_group,
+    create_rule_group as create_rule_group_repo,
+)
+from ..repository.rule_group import (
     name_exists,
     retrieve_all,
+    retrieve_all_for_instructor,
     retrieve_by_id,
+    retrieve_courses_for_rule_group,
     retrieve_rules_for_rule_group,
     retrieve_user_by_id,
     soft_delete,
-)
-from ..repository.rule_group import (
-    create_rule_group as create_rule_group_repo,
 )
 from ..repository.rule_group import (
     update_rule_group as update_rule_group_repo,
@@ -20,20 +22,33 @@ from ..repository.rule_group import (
 from ..schemas.rule_group import RuleGroupCreate, RuleGroupUpdate
 
 
-def _audit(db: Session, rule_group: RuleGroup) -> dict:
+def _audit(db: Session, entity) -> dict:
     return {
-        "created_at": rule_group.created_at,
-        "created_by": retrieve_user_by_id(db, rule_group.created_by),
-        "updated_at": rule_group.updated_at,
-        "updated_by": retrieve_user_by_id(db, rule_group.updated_by),
+        "created_at": entity.created_at,
+        "created_by": retrieve_user_by_id(db, entity.created_by),
+        "updated_at": entity.updated_at,
+        "updated_by": retrieve_user_by_id(db, entity.updated_by),
+    }
+
+
+def _course_summary(db: Session, course: Course) -> dict:
+    return {
+        "id": course.id,
+        "name": course.name,
+        "audit": _audit(db, course),
     }
 
 
 def _rule_group_fields(db: Session, rule_group: RuleGroup) -> dict:
+    courses = [
+        _course_summary(db, course)
+        for course in retrieve_courses_for_rule_group(db, rule_group.id)
+    ]
     return {
         "id": rule_group.id,
         "name": rule_group.name,
-        "number_of_courses": count_courses_for_rule_group(db, rule_group.id),
+        "number_of_courses": len(courses),
+        "courses": courses,
         "rules": retrieve_rules_for_rule_group(db, rule_group.id),
         "audit": _audit(db, rule_group),
     }
@@ -41,6 +56,13 @@ def _rule_group_fields(db: Session, rule_group: RuleGroup) -> dict:
 
 def get_all_rule_groups(db: Session) -> list[dict]:
     return [_rule_group_fields(db, rule_group) for rule_group in retrieve_all(db)]
+
+
+def get_rule_groups_for_instructor(db: Session, user_id: int) -> list[dict]:
+    return [
+        _rule_group_fields(db, rule_group)
+        for rule_group in retrieve_all_for_instructor(db, user_id)
+    ]
 
 
 def get_rule_group_detail(db: Session, rule_group_id: int) -> dict | None:

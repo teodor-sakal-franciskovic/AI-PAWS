@@ -1,8 +1,10 @@
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..models.assignment import Assignment
 from ..models.assignment_rule_group import AssignmentRuleGroup
+from ..models.course import Course
+from ..models.course_instructor import CourseInstructor
 from ..models.rule import Rule
 from ..models.rule_group import RuleGroup
 from ..models.user import User
@@ -10,6 +12,30 @@ from ..models.user import User
 
 def retrieve_all(db: Session) -> list[RuleGroup]:
     return db.query(RuleGroup).filter(RuleGroup.is_active.is_(True)).all()
+
+
+def retrieve_all_for_instructor(db: Session, user_id: int) -> list[RuleGroup]:
+    """Rule groups created by the instructor, plus rule groups used in any
+    course the instructor created or is added to (mirrors retrieve_courses_for_instructor)."""
+    return (
+        db.query(RuleGroup)
+        .outerjoin(
+            AssignmentRuleGroup, AssignmentRuleGroup.rule_group_id == RuleGroup.id
+        )
+        .outerjoin(Assignment, Assignment.id == AssignmentRuleGroup.assignment_id)
+        .outerjoin(Course, Course.id == Assignment.course_id)
+        .outerjoin(CourseInstructor, CourseInstructor.course_id == Course.id)
+        .filter(
+            RuleGroup.is_active.is_(True),
+            or_(
+                RuleGroup.created_by == user_id,
+                Course.created_by == user_id,
+                CourseInstructor.instructor_id == user_id,
+            ),
+        )
+        .distinct()
+        .all()
+    )
 
 
 def retrieve_by_id(db: Session, rule_group_id: int) -> RuleGroup | None:
@@ -34,13 +60,17 @@ def retrieve_rules_for_rule_group(db: Session, rule_group_id: int) -> list[Rule]
     return db.query(Rule).filter(Rule.rule_group_id == rule_group_id).all()
 
 
-def count_courses_for_rule_group(db: Session, rule_group_id: int) -> int:
+def retrieve_courses_for_rule_group(db: Session, rule_group_id: int) -> list[Course]:
     return (
-        db.query(func.count(func.distinct(Assignment.course_id)))
+        db.query(Course)
+        .join(Assignment, Assignment.course_id == Course.id)
         .join(AssignmentRuleGroup, AssignmentRuleGroup.assignment_id == Assignment.id)
-        .filter(AssignmentRuleGroup.rule_group_id == rule_group_id)
-        .scalar()
-        or 0
+        .filter(
+            AssignmentRuleGroup.rule_group_id == rule_group_id,
+            Course.is_active.is_(True),
+        )
+        .distinct()
+        .all()
     )
 
 

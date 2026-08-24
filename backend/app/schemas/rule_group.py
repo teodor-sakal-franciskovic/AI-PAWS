@@ -34,12 +34,24 @@ class RuleGroupResponse(BaseModel):
         from_attributes = True
 
 
+class RuleGroupCourseResponse(BaseModel):
+    """A course that uses this rule group, as shown in the rule group's detail."""
+
+    id: int
+    name: str
+    audit: AuditResponse
+
+    class Config:
+        from_attributes = True
+
+
 class RuleGroupDetailResponse(BaseModel):
     """The rule group as returned by the standalone /rule-groups endpoints."""
 
     id: int
     name: str
     number_of_courses: int
+    courses: list[RuleGroupCourseResponse] = []
     rules: list[RuleResponse] = []
     audit: AuditResponse
 

@@ -16,7 +16,6 @@ class CourseCreate(BaseModel):
     max_amount_of_points: Optional[float] = None
     feedback_language_id: int
     submission_language_ids: list[int]
-    student_group_ids: list[int]
     instructor_ids: list[int]
     assignments: list[AssignmentCreate]
 
@@ -28,7 +27,6 @@ class CourseUpdate(BaseModel):
     max_amount_of_points: Optional[float] = None
     feedback_language_id: int
     submission_language_ids: list[int]
-    student_group_ids: list[int]
     instructor_ids: list[int]
     assignments: list[AssignmentUpdate]
 

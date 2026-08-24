@@ -20,6 +20,7 @@ from ..services.rule_group import (
     delete_rule_group,
     get_all_rule_groups,
     get_rule_group_detail,
+    get_rule_groups_for_instructor,
     is_name_available,
     update_rule_group,
 )
@@ -57,6 +58,27 @@ def get_all_rule_groups_endpoint(
     db: Session = Depends(get_db),
 ):
     rule_groups = get_all_rule_groups(db)
+    return JSONResponse(
+        status_code=200,
+        content=GenericResponse(
+            message="Successfully retrieved rule groups.",
+            data=[
+                RuleGroupDetailResponse.model_validate(rule_group).model_dump(
+                    mode="json"
+                )
+                for rule_group in rule_groups
+            ],
+        ).model_dump(),
+    )
+
+
+@router.get("/instructor", response_model=GenericResponse)
+def get_rule_groups_for_instructor_endpoint(
+    role: Annotated[Role, Depends(require_role("Instructor"))],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Session = Depends(get_db),
+):
+    rule_groups = get_rule_groups_for_instructor(db, current_user.id)
     return JSONResponse(
         status_code=200,
         content=GenericResponse(

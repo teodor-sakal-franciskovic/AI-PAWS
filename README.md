@@ -582,7 +582,6 @@ data part is None, only the message gets returned.
   "max_amount_of_points": 100,
   "feedback_language_id": 1,
   "submission_language_ids": [1, 2],
-  "student_group_ids": [1, 3],
   "instructor_ids": [1, 4],
   "assignments": [
     {
@@ -598,6 +597,7 @@ data part is None, only the message gets returned.
   ]
 }
 ```
+- **Student groups are no longer set here.** `POST`/`PUT /courses` don't accept a `student_group_ids` field anymore — a course's groups are (for now) only visible via `GET`, not settable through course create/update. A new group ↔ course flow is coming later.
 #### `PUT /{course_id}`
 - Same shape as `POST /`, except assignments may carry an `id` (update) or omit it (create); any existing assignment not present in the payload is deleted.
 
@@ -717,6 +717,7 @@ data part is None, only the message gets returned.
 | PUT    | `/{rule_group_id}`            | Update of a rule group. Rules with `id` are updated, without `id` are created, existing ones not sent are deleted | Rule group edit screen |
 | DELETE | `/{rule_group_id}`            | Soft-delete of a rule group           | Rule group library "delete" action                            |
 | GET    | `/`            | Retrieval of all (active) rule groups           | Library of all rule groups, for picking existing ones when building a course            |
+| GET    | `/instructor`            | Retrieval of the rule groups created by the logged-in instructor, plus rule groups used in any course they created or were added to (mirrors `GET /courses/instructor`)           | A "my rule groups" view/filter            |
 | GET    | `/{rule_group_id}`            | Retrieval of a single rule group           | Rule group edit screen            |
 | GET    | `/check-name?name=&exclude_id=`            | Check whether a rule group name is already in use. `exclude_id` is optional and excludes the rule group being edited from the check           | Called on blur of the "Rule group name" field                            |
 
@@ -781,6 +782,18 @@ data part is None, only the message gets returned.
     "id": 3,
     "name": "HTML & CSS",
     "number_of_courses": 1,
+    "courses": [
+      {
+        "id": 1,
+        "name": "Web Programming",
+        "audit": {
+          "created_at": "2026-08-19T10:42:15Z",
+          "created_by": { "id": 4, "name": "Ulrich", "surname": "Pantic" },
+          "updated_at": "2026-08-20T14:17:03Z",
+          "updated_by": { "id": 7, "name": "Ana", "surname": "Petrovic" }
+        }
+      }
+    ],
     "rules": [
       {
         "id": 1,
@@ -801,7 +814,10 @@ data part is None, only the message gets returned.
   }
 ]
 ```
+- Note: `number_of_courses` (`= courses.length`) is kept alongside the new `courses` array — the array is the actual list of courses that link this rule group (via one of their assignments), each with its own `id`/`name`/`audit` (the *course's* audit, not the rule group's). Empty array (and `number_of_courses: 0`) if it isn't linked to any course yet.
 - Note: `percentage_of_points_in_assignment` is not part of the rule group anymore (a rule group can be linked to several assignments, each with its own percentage) — it only appears nested inside a course's `assignments[].rule_groups[]` (see `GET /courses/{course_id}`).
+#### `GET /instructor`
+- Same shape (and same objects) as `GET /`, filtered to rule groups the logged-in instructor created **or** that are used in a course they created or were added to as an instructor — same "created or added to" logic as `GET /courses/instructor`.
 #### `GET /{rule_group_id}`
 - Same shape as a single object from `GET /`.
 - `404 Not Found`, code `RULE_GROUP_NOT_FOUND`, if the id doesn't exist or was deleted.
