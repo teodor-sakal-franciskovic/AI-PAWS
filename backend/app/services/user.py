@@ -68,7 +68,6 @@ def create_user(user: UserCreate, db: Session):
             surname=user.surname,
             role_id=user.role_id,
             group_id=None,
-            assigned_to_instructor=None,
         )
         add(db, db_user)
         commit_and_refresh(db, db_user)
@@ -108,45 +107,6 @@ def update_user_password(
 def deactivate_user(user: User, db: Session):
     user.is_active = False
     commit_and_refresh(db, user)
-
-
-def _parse_batch_csv(file: UploadFile) -> pd.DataFrame:
-    if file.content_type != "text/csv":
-        raise HTTPException(status_code=400, detail="File must be a CSV")
-    try:
-        logger.info("Reading students from the uploaded csv...")
-        df = pd.read_csv(StringIO(file.file.read().decode("utf-8")))
-        logger.info("Successfully read students from the uploaded csv")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Failed to parse CSV")
-
-    required_columns = {"Ime", "Prezime", "Email", "Grupa", "Indeks", "Asistent"}
-    if not required_columns.issubset(df.columns):
-        raise HTTPException(
-            status_code=400,
-            detail=f"CSV must contain the following columns: {', '.join(required_columns)}",
-        )
-    return df
-
-
-def _create_batch_user_objects(df: pd.DataFrame, role: Role) -> List[tuple[User, dict]]:
-    users = []
-    logger.info("Creating student objects...")
-    for _, row in df.iterrows():
-        raw_password = secrets.token_urlsafe(12)
-        hashed_password = pwd_context.hash(raw_password)
-        user = User(
-            email=row["Email"],
-            password=hashed_password,
-            name=row["Ime"],
-            surname=row["Prezime"],
-            role_id=role.id,
-            group_id=int(row["Grupa"]),
-            index=row["Indeks"],
-            assigned_to_ta=row["Asistent"],
-        )
-        users.append((user, {"row": row, "raw_password": raw_password}))
-    return users
 
 
 def _send_batch_emails(users: List[tuple[User, dict]]):
@@ -243,7 +203,6 @@ def _create_batch_user_objects(
             role_id=role.id,
             group_id=group_id if group_id is not None else int(row["Grupa"]),
             index=row["Indeks"],
-            assigned_to_instructor=row["Asistent"],
         )
         users.append((user, {"row": row, "raw_password": raw_password}))
     return users

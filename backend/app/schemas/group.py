@@ -1,14 +1,15 @@
 from datetime import datetime
-from typing import List, Optional
 
 from pydantic import BaseModel
 
 
 class GroupCreate(BaseModel):
     name: str
-    short_name: Optional[str] = None
+    short_name: str | None = None
     valid_from: datetime
     valid_until: datetime
+    course_id: int
+    student_ids: list[int] = []
 
     def __str__(self):
         return (
@@ -19,16 +20,21 @@ class GroupCreate(BaseModel):
 
 
 class GroupUpdate(BaseModel):
-    name: Optional[str] = None
-    short_name: Optional[str] = None
-    valid_from: Optional[datetime] = None
-    valid_until: Optional[datetime] = None
+    name: str | None = None
+    short_name: str | None = None
+    valid_from: datetime | None = None
+    valid_until: datetime | None = None
+    student_ids: list[int] | None = None
+
+
+class StudentIdsRequest(BaseModel):
+    student_ids: list[int]
 
 
 class GroupResponse(BaseModel):
     id: int
     name: str
-    short_name: Optional[str] = None
+    short_name: str | None = None
     valid_from: datetime
     valid_until: datetime
 
@@ -41,7 +47,7 @@ class StudentGroupResponse(BaseModel):
 
     id: int
     name: str
-    short_name: Optional[str] = None
+    short_name: str | None = None
 
     class Config:
         from_attributes = True
@@ -50,7 +56,7 @@ class StudentGroupResponse(BaseModel):
 class CourseGroupsResponse(BaseModel):
     course_id: int
     course_name: str
-    groups: List[GroupResponse] = []
+    groups: list[GroupResponse] = []
 
 
 class GroupStudentResponse(BaseModel):
@@ -58,7 +64,8 @@ class GroupStudentResponse(BaseModel):
     name: str
     surname: str
     email: str
-    index: Optional[str] = None
+    index: str | None = None
+    faculty: str | None = None
     is_active: bool
 
     class Config:

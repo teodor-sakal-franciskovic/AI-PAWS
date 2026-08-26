@@ -46,6 +46,8 @@ def create_group_endpoint(
                     "short_name": "G1-2025",
                     "valid_from": "2025-01-01T00:00:00",
                     "valid_until": "2025-12-31T23:59:59",
+                    "course_id": 1,
+                    "student_ids": [10, 11, 12],
                 }
             ]
         ),

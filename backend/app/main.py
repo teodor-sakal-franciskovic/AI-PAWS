@@ -18,6 +18,7 @@ from .routers import (
     language,
     role,
     rule_group,
+    student,
     submission_mode,
     user,
 )
@@ -72,6 +73,10 @@ Endpoints associated with languages, such as their retrieval.
 ## Instructors
 
 Endpoints associated with instructors, such as their retrieval.
+
+## Students
+
+Endpoints associated with student registration and search.
 """
 
 app = FastAPI(
@@ -156,3 +161,4 @@ app.include_router(course.router)
 app.include_router(rule_group.router)
 app.include_router(language.router)
 app.include_router(instructor.router)
+app.include_router(student.router)

@@ -1,13 +1,14 @@
+from sqlalchemy import and_, case
 from sqlalchemy.orm import Session, aliased
-from sqlalchemy import case
 
-from ..models.submission import Submission, SubmissionStatus
+from ..models.assignment import Assignment
+from ..models.course_student_instructor import CourseStudentInstructor
 from ..models.feedback import Feedback
 from ..models.fulfillment import Fulfillment
 from ..models.rule import Rule
 from ..models.rule_feedback_submission import RuleFeedbackSubmission
+from ..models.submission import Submission, SubmissionStatus
 from ..models.user import User
-
 from ..schemas.submission import RuleFeedbackSchema
 
 
@@ -45,7 +46,15 @@ def retrieve_by_assignment_id(db: Session, assignment_id: int):
     return (
         db.query(Submission, Student, TA)
         .join(Student, Submission.user_id == Student.id)
-        .outerjoin(TA, Student.assigned_to_ta == TA.id)
+        .join(Assignment, Assignment.id == Submission.assignment_id)
+        .outerjoin(
+            CourseStudentInstructor,
+            and_(
+                CourseStudentInstructor.student_id == Student.id,
+                CourseStudentInstructor.course_id == Assignment.course_id,
+            ),
+        )
+        .outerjoin(TA, CourseStudentInstructor.instructor_id == TA.id)
         .filter(Submission.assignment_id == assignment_id)
         .all()
     )

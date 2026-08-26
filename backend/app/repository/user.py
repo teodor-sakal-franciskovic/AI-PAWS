@@ -3,6 +3,7 @@ from sqlalchemy import select, and_
 
 from ..schemas.user import UserCreate
 from ..models.assignment import Assignment
+from ..models.course_student_instructor import CourseStudentInstructor
 from ..models.role import Role
 from ..models.user import User
 from ..models.submission import Submission
@@ -68,6 +69,13 @@ def retrieve_evaluative_submissions(
         .join(Submission, Submission.user_id == User.id)
         .join(Assignment, Assignment.id == Submission.assignment_id)
         .join(
+            CourseStudentInstructor,
+            and_(
+                CourseStudentInstructor.student_id == User.id,
+                CourseStudentInstructor.course_id == Assignment.course_id,
+            ),
+        )
+        .join(
             RuleFeedbackSubmission,
             RuleFeedbackSubmission.submission_id == Submission.id,
         )
@@ -82,7 +90,7 @@ def retrieve_evaluative_submissions(
         )
         .where(
             User.is_active.is_(True),
-            User.assigned_to_ta == ta_id,
+            CourseStudentInstructor.instructor_id == ta_id,
             Submission.submission_mode_id == evaluative_submission_mode_id,
         )
         .order_by(User.id, Submission.id, Rule.id)

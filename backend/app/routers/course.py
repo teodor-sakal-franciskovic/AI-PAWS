@@ -10,6 +10,7 @@ from ..exceptions import ApiError
 from ..models.role import Role
 from ..models.user import User
 from ..schemas.course import CourseCreate, CourseDetailResponse, CourseUpdate
+from ..schemas.group import StudentIdsRequest
 from ..schemas.response import GenericResponse, IdResponse, NameAvailabilityResponse
 from ..services.course import (
     create_course,
@@ -20,6 +21,12 @@ from ..services.course import (
     get_courses_for_student,
     is_course_name_available,
     update_course,
+)
+from ..services.group import (
+    assign_students_to_instructor_for_course,
+    get_assigned_students_for_instructor,
+    get_unassigned_students_for_course,
+    unassign_students_from_instructor_for_course,
 )
 
 router = APIRouter(
@@ -161,4 +168,62 @@ def delete_course_endpoint(
     db: Session = Depends(get_db),
 ):
     delete_course(db, course_id)
+    return Response(status_code=204)
+
+
+@router.get("/{course_id}/students/mine", response_model=GenericResponse)
+def get_my_students_for_course_endpoint(
+    course_id: int,
+    role: Annotated[Role, Depends(require_role("Instructor"))],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Session = Depends(get_db),
+):
+    students = get_assigned_students_for_instructor(db, course_id, current_user.id)
+    return JSONResponse(
+        status_code=200,
+        content=GenericResponse(
+            message="Successfully retrieved your assigned students for this course.",
+            data=[s.model_dump(mode="json") for s in students],
+        ).model_dump(),
+    )
+
+
+@router.get("/{course_id}/students/unassigned", response_model=GenericResponse)
+def get_unassigned_students_for_course_endpoint(
+    course_id: int,
+    role: Annotated[Role, Depends(require_role("Instructor"))],
+    db: Session = Depends(get_db),
+):
+    students = get_unassigned_students_for_course(db, course_id)
+    return JSONResponse(
+        status_code=200,
+        content=GenericResponse(
+            message="Successfully retrieved unassigned students for this course.",
+            data=[s.model_dump(mode="json") for s in students],
+        ).model_dump(),
+    )
+
+
+@router.post("/{course_id}/students/assign", status_code=204)
+def assign_students_for_course_endpoint(
+    course_id: int,
+    data: StudentIdsRequest,
+    role: Annotated[Role, Depends(require_role("Instructor"))],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Session = Depends(get_db),
+):
+    assign_students_to_instructor_for_course(
+        db, course_id, data.student_ids, current_user.id
+    )
+    return Response(status_code=204)
+
+
+@router.post("/{course_id}/students/unassign", status_code=204)
+def unassign_students_for_course_endpoint(
+    course_id: int,
+    data: StudentIdsRequest,
+    role: Annotated[Role, Depends(require_role("Instructor"))],
+    db: Session = Depends(get_db),
+):
+    unassign_students_from_instructor_for_course(db, course_id, data.student_ids)
     return Response(status_code=204)

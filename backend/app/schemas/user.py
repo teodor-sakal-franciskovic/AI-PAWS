@@ -19,6 +19,7 @@ class UserResponse(BaseModel):
     surname: str
     role: str
     index: Optional[str] = None
+    faculty: Optional[str] = None
 
 
 class UserSummaryResponse(BaseModel):

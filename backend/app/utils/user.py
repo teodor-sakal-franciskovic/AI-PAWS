@@ -17,6 +17,7 @@ def create_user_response(user: User, role: Role):
         is_active=user.is_active,
         role=role.name,
         index=user.index,
+        faculty=user.faculty,
     )
 
 

@@ -571,6 +571,10 @@ data part is None, only the message gets returned.
 | GET    | `/student`            | Retrieval of all courses for the logged-in student's group           | Student's "My courses" screen                            |
 | GET    | `/{course_id}`            | Retrieval of a single course by id           | Course edit screen, populating the form when an instructor opens an existing course                            |
 | GET    | `/check-name?name=&exclude_id=`            | Check whether a course name is already in use. `exclude_id` is optional and excludes the course being edited from the check           | Called on blur of the "Course name" field when creating/editing a course                            |
+| GET    | `/{course_id}/students/mine`            | Retrieval of the logged-in instructor's own assigned students for this course           | Instructor's "my students" view for a course                            |
+| GET    | `/{course_id}/students/unassigned`            | Retrieval of every student across **all** of this course's groups that has no instructor yet — a course can have multiple groups, and an instructor doesn't care which group a student is in, just whether they're picked | Instructor's "pick your students" screen, course-wide            |
+| POST   | `/{course_id}/students/assign`            | Self-assigns the given students (from any of the course's groups) to the logged-in instructor           | Confirming a course-wide selection            |
+| POST   | `/{course_id}/students/unassign`            | Un-assigns the given students (a batch — send a list of 1 to unassign just one) from whichever instructor currently has them, for this course           | "Undo"/reassign, course-wide            |
 
 ### Body Examples
 #### `POST /`
@@ -708,6 +712,45 @@ data part is None, only the message gets returned.
 }
 ```
 - `name_available: true` means the name is free to use (this includes names freed up by a deleted course).
+#### `GET /{course_id}/students/mine`
+```json
+[
+  {
+    "id": 57,
+    "name": "Petar",
+    "surname": "Petrovic",
+    "email": "petar@example.com",
+    "index": "SV-1-2026",
+    "faculty": "FTN",
+    "is_active": true
+  },
+  {
+    ...
+  }
+]
+```
+#### `GET /{course_id}/students/unassigned`
+- Same shape as `GET /{course_id}/students/mine` above, but the unassigned pool — aggregated across every group linked to this course.
+- `404 Not Found`, code `COURSE_NOT_FOUND`.
+#### `POST /{course_id}/students/assign`
+```json
+{
+  "student_ids": [79, 81]
+}
+```
+- Students can come from **any** of the course's groups in the same call — no need to know which group a student belongs to.
+- `204 No Content` on success.
+- `400 Bad Request`, code `VALIDATION_ERROR`, if a given student isn't in any group linked to this course.
+- `409 Conflict`, code `STUDENT_ALREADY_ASSIGNED`, if one or more are already taken by another instructor (including a genuine race between two instructors — the loser gets this error).
+#### `POST /{course_id}/students/unassign`
+```json
+{
+  "student_ids": [79]
+}
+```
+- Same body shape as `assign` — a batch. Send a single-item list to unassign just one student.
+- `204 No Content` on success.
+- `404 Not Found`, code `ASSIGNMENT_NOT_FOUND`, if any given student currently has no instructor assigned for this course — all-or-nothing, same as the group-scoped version.
 
 ## /rule-groups
 ### Brief Summary
@@ -829,12 +872,14 @@ data part is None, only the message gets returned.
 ```
 
 ## /groups
-- "Student groups" are the same `Group` entity documented in the `## /groups` section above (v1) — there's no separate `/student_groups` endpoint. Both `POST /` and `GET /` now carry the new `short_name` field.
+- "Student groups" are the same `Group` entity documented in the `## /groups` section above (v1) — there's no separate `/student_groups` endpoint.
+- A group is now always tied to a course at creation time, and is created with an already-picked list of students (see `GET /students/search` below for how to find them). Editing a group later can add/remove students, but a student can only ever belong to **one** group system-wide — trying to add someone who's already in a different group is rejected.
+- Instructor self-assignment (picking which students are "theirs") is **course-scoped, not group-scoped** — a course can have multiple groups, and an instructor doesn't care which group a student came from. See `GET /courses/{course_id}/students/unassigned`, `POST /courses/{course_id}/students/assign`, and `POST /courses/{course_id}/students/unassign` in the `## /courses` section above.
 ### Brief Summary
 | Method | Path                      | Description                                   | FE Usage                                 |
 |--------|---------------------------|-----------------------------------------------|----------------------------------------------|
-| POST   | `/`            | Creation of a new student group, now with an optional `short_name`           | Course creation screen, "create a new student group" flow            |
-| PUT    | `/{group_id}`            | Update of a student group           | Student group edit screen            |
+| POST   | `/`            | Creation of a new student group tied to a course, with a pre-selected student list           | Final step of the "create student group" flow, after searching/filtering students            |
+| PUT    | `/{group_id}`            | Update of a student group. `student_ids`, if sent, fully replaces the group's roster (add/remove); omit it to leave the roster untouched           | Student group edit screen            |
 | DELETE | `/{group_id}`            | Soft-delete of a student group           | Student group list "delete" action            |
 | GET    | `/`            | Retrieval of active student groups (now includes `short_name`)           | Used for the "student groups" select on the course creation screen                            |
 
@@ -845,12 +890,14 @@ data part is None, only the message gets returned.
     "name": "G_1_2025",
     "short_name": "G1-2025",
     "valid_from": "2025-01-01T00:00:00",
-    "valid_until": "2025-12-31T23:59:59"
+    "valid_until": "2025-12-31T23:59:59",
+    "course_id": 1,
+    "student_ids": [57, 58, 59]
 }
 ```
-- `short_name` is optional.
+- `short_name` is optional. `course_id` is required and immutable after creation. `student_ids` defaults to `[]` (an empty group can be filled in later via `PUT`).
 #### `PUT /{group_id}`
-- Same shape as `POST /`, but every field is optional — only send what should change.
+- Same shape as `POST /` minus `course_id`, but every field is optional — only send what should change. `student_ids`, if present, is the group's *complete* new roster (not a delta).
 
 ### Return Value Examples
 #### `POST /`
@@ -860,10 +907,12 @@ data part is None, only the message gets returned.
 }
 ```
 - `409 Conflict`, code `GROUP_NAME_ALREADY_EXISTS`, if the name is taken.
+- `400 Bad Request`, code `VALIDATION_ERROR`, if `course_id` doesn't exist, or any `student_ids` entry doesn't exist / isn't a `Student` / already belongs to a different group.
 #### `PUT /{group_id}`
 - `204 No Content` on success.
 - `404 Not Found`, code `GROUP_NOT_FOUND`.
 - `409 Conflict`, code `GROUP_NAME_ALREADY_EXISTS`, if renaming to an already-used name.
+- `400 Bad Request`, code `VALIDATION_ERROR` (same `student_ids` cases as `POST /`).
 #### `DELETE /{group_id}`
 - `204 No Content` on success.
 - `404 Not Found`, code `GROUP_NOT_FOUND`, if it doesn't exist or was already deleted.
@@ -931,3 +980,53 @@ data part is None, only the message gets returned.
   }
 ]
 ```
+
+## /students
+- Registration is now a standalone step, separate from group creation — a registered student has no group and no assigned instructor until later steps (`POST /groups/` and `POST /courses/{course_id}/students/assign`).
+### Brief Summary
+| Method | Path                      | Description                                   | FE Usage                                 |
+|--------|---------------------------|-----------------------------------------------|----------------------------------------------|
+| POST   | `/batch`            | Bulk registration of students from a CSV export of the "Excel" roster           | Student registration screen, CSV upload            |
+| GET    | `/search?email=&name=&surname=&faculty=&index=&page=&page_size=`            | Paginated, filterable search over registered students           | "Find my students" screen when building a group — filter by faculty/index/etc. before adding to a group            |
+
+### Body Examples
+#### `POST /batch`
+```
+A CSV file is expected, with the following header columns:
+- Email,
+- Ime,
+- Prezime,
+- Fakultet,
+- Indeks.
+```
+- All fields are currently assumed to arrive as a CSV export. If the source data actually comes through as JSON instead, this endpoint's body/parsing will need a small follow-up change.
+
+### Return Value Examples
+#### `POST /batch`
+```
+data part is None, only the message gets returned (e.g. "Successfully registered 3 students.").
+```
+- `400 Bad Request`, code `VALIDATION_ERROR`, if the file isn't a CSV, fails to parse, or is missing a required column.
+#### `GET /search`
+```json
+{
+  "items": [
+    {
+      "id": 58,
+      "name": "Ana",
+      "surname": "Anic",
+      "email": "ana@example.com",
+      "index": "SV-2-2026",
+      "faculty": "FTN",
+      "is_active": true
+    },
+    {
+      ...
+    }
+  ],
+  "total": 42,
+  "page": 1,
+  "page_size": 25
+}
+```
+- All filters are optional and match as case-insensitive substrings. `page_size` is capped at 100 (default 25) to avoid pulling the whole student table at once — use `total` to drive pagination on the FE.
