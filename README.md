@@ -9,6 +9,8 @@ AI-Powered Academic Writing Support
 3. Run the following command: `docker compose up`.
 4. Access the backend at the ```localhost:8080``` address in the web browser.
 
+- Alembic migrations (`alembic upgrade head`) run automatically on container startup, after the database reports healthy — no manual migration step needed.
+
 
 # Endpoints
 
