@@ -1,13 +1,15 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile, status
+from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from ..dependencies.auth import require_role
+from ..dependencies.auth import get_current_active_user, require_role
 from ..dependencies.db import get_db
 from ..models.role import Role
+from ..models.user import User
 from ..schemas.response import GenericResponse
+from ..schemas.student import StudentBatchRegisterRequest, StudentBatchRegisterResponse
 from ..services.student import register_students, search_students_service
 
 router = APIRouter(
@@ -19,16 +21,17 @@ router = APIRouter(
 
 @router.post("/batch", status_code=status.HTTP_201_CREATED)
 def register_students_endpoint(
+    data: StudentBatchRegisterRequest,
     role: Annotated[Role, Depends(require_role("Instructor"))],
-    file: UploadFile = File(...),
+    current_user: Annotated[User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
 ):
-    registered = register_students(file, db)
+    registered = register_students(data.students, db, current_user.id)
     return JSONResponse(
         status_code=status.HTTP_201_CREATED,
         content=GenericResponse(
             message=f"Successfully registered {registered} students.",
-            data=None,
+            data=StudentBatchRegisterResponse(registered_count=registered).model_dump(),
         ).model_dump(),
     )
 

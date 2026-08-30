@@ -988,27 +988,74 @@ data part is None, only the message gets returned.
 ### Brief Summary
 | Method | Path                      | Description                                   | FE Usage                                 |
 |--------|---------------------------|-----------------------------------------------|----------------------------------------------|
-| POST   | `/batch`            | Bulk registration of students from a CSV export of the "Excel" roster           | Student registration screen, CSV upload            |
+| POST   | `/batch`            | Bulk registration of students from a JSON list (built from manual entry, CSV/Excel import, or a clipboard paste — the FE normalizes all of those to the same JSON shape before sending)           | Student registration screen            |
 | GET    | `/search?email=&name=&surname=&faculty=&index=&page=&page_size=`            | Paginated, filterable search over registered students           | "Find my students" screen when building a group — filter by faculty/index/etc. before adding to a group            |
 
 ### Body Examples
 #### `POST /batch`
+```json
+{
+  "students": [
+    {
+      "name": "Ana",
+      "surname": "Nadj",
+      "email": "ana@gmail.com",
+      "faculty": "FTN",
+      "index": "00100"
+    },
+    {
+      "name": "Pera",
+      "surname": "Kis",
+      "email": "pera@gmail.com",
+      "faculty": "FTN",
+      "index": "00101"
+    }
+  ]
+}
 ```
-A CSV file is expected, with the following header columns:
-- Email,
-- Ime,
-- Prezime,
-- Fakultet,
-- Indeks.
-```
-- All fields are currently assumed to arrive as a CSV export. If the source data actually comes through as JSON instead, this endpoint's body/parsing will need a small follow-up change.
+- All 5 fields are required per student.
+- `students` must contain between 1 and 500 entries.
+- `faculty` is a free-text field.
+- Processing is atomic: if any student in the batch fails validation, nothing in the batch is registered.
 
 ### Return Value Examples
 #### `POST /batch`
+```json
+{
+  "message": "Successfully registered 2 students.",
+  "data": {
+    "registered_count": 2
+  }
+}
 ```
-data part is None, only the message gets returned (e.g. "Successfully registered 3 students.").
+- `400 Bad Request`, code `STUDENT_BATCH_EMPTY`, if `students` is an empty array.
+- `400 Bad Request`, code `STUDENT_BATCH_LIMIT_EXCEEDED`, if `students` has more than 500 entries.
+- `400 Bad Request`, code `VALIDATION_ERROR`, if the request body doesn't match the expected JSON shape (missing/wrong-typed fields) — the app-wide generic validation response.
+- `400 Bad Request`, code `STUDENT_BATCH_VALIDATION_FAILED`, if one or more students fail business validation. All errors found are returned together:
+```json
+{
+  "code": "STUDENT_BATCH_VALIDATION_FAILED",
+  "message": "Student batch contains validation errors.",
+  "data": {
+    "errors": [
+      {
+        "row_number": 2,
+        "field": "email",
+        "code": "STUDENT_EMAIL_ALREADY_EXISTS",
+        "message": "A student with this email already exists."
+      },
+      {
+        "row_number": 3,
+        "field": "index",
+        "code": "STUDENT_INDEX_ALREADY_EXISTS",
+        "message": "A student with this index already exists."
+      }
+    ]
+  }
+}
 ```
-- `400 Bad Request`, code `VALIDATION_ERROR`, if the file isn't a CSV, fails to parse, or is missing a required column.
+  - `row_number` is 1-indexed into the `students` array from the request, for the FE to map an error back to a row.
+  - Possible per-row `code`s: `STUDENT_EMAIL_INVALID`, `STUDENT_EMAIL_DUPLICATED_IN_BATCH`, `STUDENT_INDEX_DUPLICATED_IN_BATCH`, `STUDENT_EMAIL_ALREADY_EXISTS`, `STUDENT_INDEX_ALREADY_EXISTS`.
 #### `GET /search`
 ```json
 {

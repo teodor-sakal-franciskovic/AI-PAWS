@@ -1,68 +1,146 @@
+import re
 import secrets
-from io import StringIO
 
-import pandas as pd
-from fastapi import UploadFile
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from ..exceptions import ApiError
-from ..models.role import Role
 from ..models.user import User
 from ..repository.role import retrieve_by_name as retrieve_role_by_name
-from ..repository.student import search_students
+from ..repository.student import (
+    retrieve_existing_emails,
+    retrieve_existing_indexes,
+    search_students,
+)
 from ..schemas.group import GroupStudentResponse
-from ..schemas.student import StudentSearchResponse
+from ..schemas.student import (
+    StudentBatchErrorItem,
+    StudentBatchItem,
+    StudentSearchResponse,
+)
 from ..utils.email import get_email_body, send_email
 from ..utils.logger import logger
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-BATCH_REQUIRED_COLUMNS = {"Email", "Ime", "Prezime", "Fakultet", "Indeks"}
+BATCH_MAX_SIZE = 500
+EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
-def _parse_batch_csv(file: UploadFile) -> pd.DataFrame:
-    if file.content_type != "text/csv":
-        raise ApiError(400, "VALIDATION_ERROR", "File must be a CSV.")
-    try:
-        logger.info("Reading students from the uploaded csv...")
-        df = pd.read_csv(StringIO(file.file.read().decode("utf-8")))
-        logger.info("Successfully read students from the uploaded csv")
-    except Exception:
-        raise ApiError(400, "VALIDATION_ERROR", "Failed to parse CSV.")
+def _validate_batch(
+    students: list[StudentBatchItem], db: Session
+) -> list[StudentBatchErrorItem]:
+    errors: list[StudentBatchErrorItem] = []
 
-    if not BATCH_REQUIRED_COLUMNS.issubset(df.columns):
+    emails_seen: dict[str, int] = {}
+    indexes_seen: dict[str, int] = {}
+    for row_number, student in enumerate(students, start=1):
+        if not EMAIL_REGEX.match(student.email):
+            errors.append(
+                StudentBatchErrorItem(
+                    row_number=row_number,
+                    field="email",
+                    code="STUDENT_EMAIL_INVALID",
+                    message="Email address is not valid.",
+                )
+            )
+
+        if student.email in emails_seen:
+            errors.append(
+                StudentBatchErrorItem(
+                    row_number=row_number,
+                    field="email",
+                    code="STUDENT_EMAIL_DUPLICATED_IN_BATCH",
+                    message="Email is duplicated within the request.",
+                )
+            )
+        else:
+            emails_seen[student.email] = row_number
+
+        if student.index in indexes_seen:
+            errors.append(
+                StudentBatchErrorItem(
+                    row_number=row_number,
+                    field="index",
+                    code="STUDENT_INDEX_DUPLICATED_IN_BATCH",
+                    message="Index is duplicated within the request.",
+                )
+            )
+        else:
+            indexes_seen[student.index] = row_number
+
+    existing_emails = retrieve_existing_emails(db, list(emails_seen.keys()))
+    existing_indexes = retrieve_existing_indexes(db, list(indexes_seen.keys()))
+
+    for email, row_number in emails_seen.items():
+        if email in existing_emails:
+            errors.append(
+                StudentBatchErrorItem(
+                    row_number=row_number,
+                    field="email",
+                    code="STUDENT_EMAIL_ALREADY_EXISTS",
+                    message="A student with this email already exists.",
+                )
+            )
+
+    for index, row_number in indexes_seen.items():
+        if index in existing_indexes:
+            errors.append(
+                StudentBatchErrorItem(
+                    row_number=row_number,
+                    field="index",
+                    code="STUDENT_INDEX_ALREADY_EXISTS",
+                    message="A student with this index already exists.",
+                )
+            )
+
+    return errors
+
+
+def register_students(
+    students: list[StudentBatchItem], db: Session, created_by: int
+) -> int:
+    if not students:
+        raise ApiError(400, "STUDENT_BATCH_EMPTY", "The students array is empty.")
+    if len(students) > BATCH_MAX_SIZE:
         raise ApiError(
             400,
-            "VALIDATION_ERROR",
-            f"CSV must contain the following columns: {', '.join(BATCH_REQUIRED_COLUMNS)}",
+            "STUDENT_BATCH_LIMIT_EXCEEDED",
+            f"A batch can contain at most {BATCH_MAX_SIZE} students.",
         )
-    return df
 
+    errors = _validate_batch(students, db)
+    if errors:
+        raise ApiError(
+            400,
+            "STUDENT_BATCH_VALIDATION_FAILED",
+            "Student batch contains validation errors.",
+            data={"errors": [e.model_dump() for e in errors]},
+        )
 
-def _create_student_objects(df: pd.DataFrame, role: Role) -> list[tuple[User, dict]]:
-    users = []
-    logger.info("Creating student objects...")
-    for _, row in df.iterrows():
+    student_role = retrieve_role_by_name(db, "Student")
+    if not student_role:
+        raise ApiError(500, "INTERNAL_ERROR", "Student role not found.")
+
+    created: list[tuple[User, str]] = []
+    for student in students:
         raw_password = secrets.token_urlsafe(12)
         hashed_password = pwd_context.hash(raw_password)
         user = User(
-            email=row["Email"],
+            email=student.email,
             password=hashed_password,
-            name=row["Ime"],
-            surname=row["Prezime"],
-            faculty=row["Fakultet"],
-            index=row["Indeks"],
-            role_id=role.id,
+            name=student.name,
+            surname=student.surname,
+            faculty=student.faculty,
+            index=student.index,
+            role_id=student_role.id,
             group_id=None,
+            created_by=created_by,
         )
-        users.append((user, {"row": row, "raw_password": raw_password}))
-    return users
+        created.append((user, raw_password))
 
-
-def _persist_batch_students(db: Session, users: list[tuple[User, dict]]) -> None:
     try:
-        db.bulk_save_objects([user for user, _ in users])
+        db.bulk_save_objects([user for user, _ in created])
         db.commit()
     except Exception as e:
         db.rollback()
@@ -72,33 +150,19 @@ def _persist_batch_students(db: Session, users: list[tuple[User, dict]]) -> None
             f"Something went wrong while writing the students to the database: {e}",
         )
 
-
-def _send_batch_emails(users: list[tuple[User, dict]]) -> None:
-    for _, meta in users:
-        email_body = get_email_body(meta["row"], meta["raw_password"])
+    logger.info(f"{len(created)} students registered successfully")
+    for user, raw_password in created:
+        email_body = get_email_body({"Ime": user.name, "Email": user.email}, raw_password)
         try:
             send_email(
-                meta["row"]["Email"],
+                user.email,
                 "[PIGKUT] Kredencijali za pristup platformi",
                 email_body,
             )
         except Exception as e:
-            logger.info(f"Failed to send email to {meta['row']['Email']}: {e}")
+            logger.info(f"Failed to send email to {user.email}: {e}")
 
-
-def register_students(file: UploadFile, db: Session) -> int:
-    df = _parse_batch_csv(file)
-
-    student_role = retrieve_role_by_name(db, "Student")
-    if not student_role:
-        raise ApiError(500, "INTERNAL_ERROR", "Student role not found.")
-
-    users = _create_student_objects(df, student_role)
-    _persist_batch_students(db, users)
-
-    logger.info(f"{len(users)} students registered successfully")
-    _send_batch_emails(users)
-    return len(users)
+    return len(created)
 
 
 def search_students_service(

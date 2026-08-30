@@ -43,3 +43,17 @@ def retrieve_by_ids(db: Session, user_ids: list[int]) -> list[User]:
     if not user_ids:
         return []
     return db.query(User).filter(User.id.in_(user_ids)).all()
+
+
+def retrieve_existing_emails(db: Session, emails: list[str]) -> set[str]:
+    if not emails:
+        return set()
+    rows = db.query(User.email).filter(User.email.in_(emails)).all()
+    return {row[0] for row in rows}
+
+
+def retrieve_existing_indexes(db: Session, indexes: list[str]) -> set[str]:
+    if not indexes:
+        return set()
+    rows = db.query(User.index).filter(User.index.in_(indexes)).all()
+    return {row[0] for row in rows}

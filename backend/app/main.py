@@ -117,9 +117,12 @@ app.add_middleware(
 
 @app.exception_handler(ApiError)
 async def api_error_handler(request: Request, exc: ApiError):
+    content = {"code": exc.code, "message": exc.message}
+    if exc.data is not None:
+        content["data"] = exc.data
     return JSONResponse(
         status_code=exc.status_code,
-        content={"code": exc.code, "message": exc.message},
+        content=content,
     )
 
 

@@ -28,3 +28,4 @@ class User(AcademicWritingSchema):
     )
     group_id = Column("group_id", Integer, ForeignKey("group.id"), nullable=True)
     faculty = Column("faculty", String, nullable=True)
+    created_by = Column("created_by", Integer, ForeignKey("user.id"), nullable=True)
