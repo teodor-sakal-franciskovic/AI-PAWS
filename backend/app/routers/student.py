@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -10,7 +10,11 @@ from ..models.role import Role
 from ..models.user import User
 from ..schemas.response import GenericResponse
 from ..schemas.student import StudentBatchRegisterRequest, StudentBatchRegisterResponse
-from ..services.student import register_students, search_students_service
+from ..services.student import (
+    register_students,
+    search_students_service,
+    send_batch_registration_emails,
+)
 
 router = APIRouter(
     prefix="/students",
@@ -22,11 +26,13 @@ router = APIRouter(
 @router.post("/batch", status_code=status.HTTP_201_CREATED)
 def register_students_endpoint(
     data: StudentBatchRegisterRequest,
+    background_tasks: BackgroundTasks,
     role: Annotated[Role, Depends(require_role("Instructor"))],
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
 ):
-    registered = register_students(data.students, db, current_user.id)
+    registered, email_jobs = register_students(data.students, db, current_user.id)
+    background_tasks.add_task(send_batch_registration_emails, email_jobs)
     return JSONResponse(
         status_code=status.HTTP_201_CREATED,
         content=GenericResponse(

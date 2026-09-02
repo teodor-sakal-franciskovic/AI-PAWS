@@ -1017,6 +1017,7 @@ data part is None, only the message gets returned.
 - `students` must contain between 1 and 500 entries.
 - `faculty` is a free-text field.
 - Processing is atomic: if any student in the batch fails validation, nothing in the batch is registered.
+- Credential emails are sent as a background task after the response is returned — the request doesn't wait on SMTP, so the FE isn't blocked by slow/failed email delivery. A failed send is logged server-side but doesn't affect the registration result the FE already received.
 
 ### Return Value Examples
 #### `POST /batch`

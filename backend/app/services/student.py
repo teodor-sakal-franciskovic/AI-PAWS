@@ -99,7 +99,7 @@ def _validate_batch(
 
 def register_students(
     students: list[StudentBatchItem], db: Session, created_by: int
-) -> int:
+) -> tuple[int, list[tuple[str, str, str]]]:
     if not students:
         raise ApiError(400, "STUDENT_BATCH_EMPTY", "The students array is empty.")
     if len(students) > BATCH_MAX_SIZE:
@@ -151,18 +151,21 @@ def register_students(
         )
 
     logger.info(f"{len(created)} students registered successfully")
-    for user, raw_password in created:
-        email_body = get_email_body({"Ime": user.name, "Email": user.email}, raw_password)
+    email_jobs = [(user.name, user.email, raw_password) for user, raw_password in created]
+    return len(created), email_jobs
+
+
+def send_batch_registration_emails(email_jobs: list[tuple[str, str, str]]) -> None:
+    for name, email, raw_password in email_jobs:
+        email_body = get_email_body({"Ime": name, "Email": email}, raw_password)
         try:
             send_email(
-                user.email,
+                email,
                 "[PIGKUT] Kredencijali za pristup platformi",
                 email_body,
             )
         except Exception as e:
-            logger.info(f"Failed to send email to {user.email}: {e}")
-
-    return len(created)
+            logger.info(f"Failed to send email to {email}: {e}")
 
 
 def search_students_service(
