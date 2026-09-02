@@ -1,5 +1,4 @@
 from pydantic import BaseModel, EmailStr
-from typing import List, Optional
 
 from .submission import EvaluativeSubmissionSchema
 
@@ -18,8 +17,8 @@ class UserResponse(BaseModel):
     name: str
     surname: str
     role: str
-    index: Optional[str] = None
-    faculty: Optional[str] = None
+    index: str | None = None
+    faculty: str | None = None
 
 
 class UserSummaryResponse(BaseModel):
@@ -46,8 +45,8 @@ class EvaluativeUserSubmissionSchema(BaseModel):
     user_index: str
     name: str
     surname: str
-    submissions: List[EvaluativeSubmissionSchema]
+    submissions: list[EvaluativeSubmissionSchema]
 
 
 class EvaluativeUsersSubmissionResponse(BaseModel):
-    users_with_submissions: List[EvaluativeUserSubmissionSchema]
+    users_with_submissions: list[EvaluativeUserSubmissionSchema]

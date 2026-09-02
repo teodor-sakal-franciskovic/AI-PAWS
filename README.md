@@ -603,7 +603,6 @@ data part is None, only the message gets returned.
   ]
 }
 ```
-- **Student groups are no longer set here.** `POST`/`PUT /courses` don't accept a `student_group_ids` field anymore — a course's groups are (for now) only visible via `GET`, not settable through course create/update. A new group ↔ course flow is coming later.
 #### `PUT /{course_id}`
 - Same shape as `POST /`, except assignments may carry an `id` (update) or omit it (create); any existing assignment not present in the payload is deleted.
 
@@ -875,13 +874,16 @@ data part is None, only the message gets returned.
 
 ## /groups
 - "Student groups" are the same `Group` entity documented in the `## /groups` section above (v1) — there's no separate `/student_groups` endpoint.
-- A group is now always tied to a course at creation time, and is created with an already-picked list of students (see `GET /students/search` below for how to find them). Editing a group later can add/remove students, but a student can only ever belong to **one** group system-wide — trying to add someone who's already in a different group is rejected.
+- A group is tied to exactly one course at a time. The course it's tied to **can be changed later** via `PUT /{group_id}`.
+- Membership rule: a student can belong to groups on **different** courses at the same time (e.g. one group for "Web Programming", another for "Databases"), but can only be in **one** group per course. Trying to add a student to a group when they're already in a different group *on that same course* is rejected with `409 STUDENT_ALREADY_IN_COURSE_GROUP`. This replaces the old "one group system-wide" rule.
 - Instructor self-assignment (picking which students are "theirs") is **course-scoped, not group-scoped** — a course can have multiple groups, and an instructor doesn't care which group a student came from. See `GET /courses/{course_id}/students/unassigned`, `POST /courses/{course_id}/students/assign`, and `POST /courses/{course_id}/students/unassign` in the `## /courses` section above.
+- Authorization: any authenticated `Instructor` can create/view/edit a group on any active course — there's no per-course ownership check (matches every other course-linked endpoint in this API, e.g. the course-scoped assign/unassign above). Admin-level restrictions (limiting group management to specific instructors) are a known open item, not yet designed.
 ### Brief Summary
 | Method | Path                      | Description                                   | FE Usage                                 |
 |--------|---------------------------|-----------------------------------------------|----------------------------------------------|
 | POST   | `/`            | Creation of a new student group tied to a course, with a pre-selected student list           | Final step of the "create student group" flow, after searching/filtering students            |
-| PUT    | `/{group_id}`            | Update of a student group. `student_ids`, if sent, fully replaces the group's roster (add/remove); omit it to leave the roster untouched           | Student group edit screen            |
+| GET    | `/{group_id}`            | Full detail of one student group: its course, its current roster, and audit info           | Student group view/edit screen, loading an existing group            |
+| PUT    | `/{group_id}`            | Update of a student group. `course_id`, if sent, re-links the group to a different course. `student_ids`, if sent, fully replaces the group's roster (add/remove); omit either to leave it untouched           | Student group edit screen            |
 | DELETE | `/{group_id}`            | Soft-delete of a student group           | Student group list "delete" action            |
 | GET    | `/`            | Retrieval of active student groups (now includes `short_name`)           | Used for the "student groups" select on the course creation screen                            |
 
@@ -897,9 +899,21 @@ data part is None, only the message gets returned.
     "student_ids": [57, 58, 59]
 }
 ```
-- `short_name` is optional. `course_id` is required and immutable after creation. `student_ids` defaults to `[]` (an empty group can be filled in later via `PUT`).
+- `short_name` is optional. `course_id` is required. `student_ids` defaults to `[]` (an empty group can be filled in later via `PUT`).
 #### `PUT /{group_id}`
-- Same shape as `POST /` minus `course_id`, but every field is optional — only send what should change. `student_ids`, if present, is the group's *complete* new roster (not a delta).
+```json
+{
+    "name": "Business Informatics 2026 - Group A",
+    "short_name": "BI 2026-A",
+    "valid_from": "2026-02-16T00:00:00",
+    "valid_until": "2026-06-30T23:59:59",
+    "course_id": 22,
+    "student_ids": [57, 61, 73]
+}
+```
+- Every field is optional — only send what should change.
+- `course_id`, if omitted, leaves the group on its current course. If sent, the group is re-linked to that course, and **every current member is re-validated against the new course** (rejected with `409` if any of them is already in a different group there).
+- `student_ids`, if omitted, leaves the roster untouched (even if `course_id` changes — existing members just move over to the new course with the group). If sent, it's the group's *complete* new roster, not a delta of adds/removes.
 
 ### Return Value Examples
 #### `POST /`
@@ -909,12 +923,51 @@ data part is None, only the message gets returned.
 }
 ```
 - `409 Conflict`, code `GROUP_NAME_ALREADY_EXISTS`, if the name is taken.
-- `400 Bad Request`, code `VALIDATION_ERROR`, if `course_id` doesn't exist, or any `student_ids` entry doesn't exist / isn't a `Student` / already belongs to a different group.
+- `400 Bad Request`, code `VALIDATION_ERROR`, if `course_id` doesn't exist/isn't active, `student_ids` has duplicates, or any entry doesn't exist / isn't a `Student`.
+- `409 Conflict`, code `STUDENT_ALREADY_IN_COURSE_GROUP`, if any `student_ids` entry already belongs to a *different* group on this course:
+```json
+{
+  "code": "STUDENT_ALREADY_IN_COURSE_GROUP",
+  "message": "One or more students already belong to another group in this course.",
+  "data": { "student_ids": [61, 73] }
+}
+```
+#### `GET /{group_id}`
+```json
+{
+  "id": 7,
+  "name": "Business Informatics 2026 - Group A",
+  "short_name": "BI 2026-A",
+  "valid_from": "2026-02-16T00:00:00",
+  "valid_until": "2026-06-30T23:59:59",
+  "course_id": 17,
+  "course_name": "Web Programming",
+  "students": [
+    {
+      "id": 57,
+      "name": "Petar",
+      "surname": "Petrovic",
+      "email": "petar@example.com",
+      "index": "SV-1-2026",
+      "faculty": "FTN",
+      "is_active": true
+    }
+  ],
+  "audit": {
+    "created_at": "2026-08-23T16:24:35.009585",
+    "created_by": { "id": 1, "name": "Teodor", "surname": "Sakal Franciskovic" },
+    "updated_at": "2026-08-24T09:20:44.844673",
+    "updated_by": { "id": 1, "name": "Teodor", "surname": "Sakal Franciskovic" }
+  }
+}
+```
+- `404 Not Found`, code `GROUP_NOT_FOUND`.
 #### `PUT /{group_id}`
 - `204 No Content` on success.
 - `404 Not Found`, code `GROUP_NOT_FOUND`.
 - `409 Conflict`, code `GROUP_NAME_ALREADY_EXISTS`, if renaming to an already-used name.
-- `400 Bad Request`, code `VALIDATION_ERROR` (same `student_ids` cases as `POST /`).
+- `400 Bad Request`, code `VALIDATION_ERROR` (same `student_ids`/`course_id` validation as `POST /`).
+- `409 Conflict`, code `STUDENT_ALREADY_IN_COURSE_GROUP` (same shape as `POST /`) — either from a `student_ids` conflict, or because changing `course_id` puts an existing member in conflict with a group they're already in on the new course.
 #### `DELETE /{group_id}`
 - `204 No Content` on success.
 - `404 Not Found`, code `GROUP_NOT_FOUND`, if it doesn't exist or was already deleted.

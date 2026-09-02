@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from typing import Optional
 
 from .audit import AuditResponse
 from .rule import RuleCreate, RuleResponse, RuleUpdate
@@ -19,7 +18,7 @@ class RuleGroupLink(BaseModel):
     """A reference to an existing rule group from within an assignment payload."""
 
     id: int
-    percentage_of_points_in_assignment: Optional[float] = None
+    percentage_of_points_in_assignment: float | None = None
 
 
 class RuleGroupResponse(BaseModel):
@@ -27,7 +26,7 @@ class RuleGroupResponse(BaseModel):
 
     id: int
     name: str
-    percentage_of_points_in_assignment: Optional[float] = None
+    percentage_of_points_in_assignment: float | None = None
     rules: list[RuleResponse] = []
 
     class Config:

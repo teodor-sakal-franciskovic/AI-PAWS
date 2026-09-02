@@ -1,8 +1,8 @@
 import base64
+from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict
-from typing import Any, List
-from datetime import datetime
 
 from .rule import EvaluativeRuleSchema
 
@@ -41,7 +41,7 @@ class EvaluativeSubmissionSchema(BaseModel):
     assignment_start_date: datetime
     assignment_end_date: datetime
     achieved_points_percentage: Any
-    rules: List[EvaluativeRuleSchema]
+    rules: list[EvaluativeRuleSchema]
 
 
 class TAEvaluationGrade(BaseModel):
@@ -52,4 +52,4 @@ class TAEvaluationGrade(BaseModel):
 
 
 class TAEvaluationGradesRequest(BaseModel):
-    evaluation_grades: List[TAEvaluationGrade]
+    evaluation_grades: list[TAEvaluationGrade]

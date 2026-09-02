@@ -1,23 +1,30 @@
 from fastapi import HTTPException, UploadFile, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..exceptions import ApiError
 from ..models.group import Group
 from ..repository.course import retrieve_by_id as retrieve_course_by_id
 from ..repository.group import (
+    add_students_to_group,
     assign_students,
     link_group_to_course,
     name_exists,
+    remove_students_from_group,
+    repoint_group_students_to_course,
     retrieve_all_valid,
     retrieve_already_assigned_student_ids,
     retrieve_assigned_students_for_instructor,
     retrieve_by_id,
+    retrieve_conflicting_group_for_students,
+    retrieve_course_id_for_group,
     retrieve_group_ids_for_course,
     retrieve_groups_grouped_by_course,
+    retrieve_student_ids_in_course_groups,
+    retrieve_student_ids_in_group,
     retrieve_students_in_group,
     retrieve_unassigned_students_for_course,
-    set_students_group,
-    set_user_group,
+    set_group_course,
     soft_delete_group,
     unassign_students,
     update_group,
@@ -25,6 +32,7 @@ from ..repository.group import (
 from ..repository.role import retrieve_by_name as retrieve_role_by_name
 from ..repository.student import retrieve_by_ids as retrieve_students_by_ids
 from ..repository.user import retrieve_by_id as retrieve_user_by_id
+from ..schemas.audit import AuditResponse
 from ..schemas.group import (
     GroupCreate,
     GroupResponse,
@@ -36,10 +44,16 @@ from ..utils.logger import logger
 
 
 def _validate_student_ids(
-    db: Session, student_ids: list[int], exclude_group_id: int | None = None
+    db: Session,
+    course_id: int,
+    student_ids: list[int],
+    exclude_group_id: int | None = None,
 ) -> None:
     if not student_ids:
         return
+
+    if len(student_ids) != len(set(student_ids)):
+        raise ApiError(400, "VALIDATION_ERROR", "Duplicate student IDs in the request.")
 
     student_role = retrieve_role_by_name(db, "Student")
     users = retrieve_students_by_ids(db, student_ids)
@@ -61,25 +75,27 @@ def _validate_student_ids(
             f"User(s) are not students: {', '.join(str(i) for i in sorted(not_students))}.",
         )
 
-    already_grouped = [
-        u.id for u in users if u.group_id is not None and u.group_id != exclude_group_id
-    ]
-    if already_grouped:
+    conflicts = retrieve_conflicting_group_for_students(
+        db, course_id, student_ids, exclude_group_id=exclude_group_id
+    )
+    if conflicts:
         raise ApiError(
-            400,
-            "VALIDATION_ERROR",
-            f"Student(s) already belong to another group: {', '.join(str(i) for i in sorted(already_grouped))}.",
+            409,
+            "STUDENT_ALREADY_IN_COURSE_GROUP",
+            "One or more students already belong to another group in this course.",
+            data={"student_ids": sorted(conflicts.keys())},
         )
 
 
-def create_group(group: GroupCreate, db: Session) -> int:
+def create_group(group: GroupCreate, db: Session, user_id: int) -> int:
     if name_exists(db, group.name):
         raise ApiError(
             409, "GROUP_NAME_ALREADY_EXISTS", "A group with this name already exists."
         )
     if not retrieve_course_by_id(db, group.course_id):
         raise ApiError(400, "VALIDATION_ERROR", "Course not found.")
-    _validate_student_ids(db, group.student_ids)
+    _validate_student_ids(db, group.course_id, group.student_ids)
+
     try:
         logger.info(f"Creating a group with the received object: {group} ")
         db_group = Group(
@@ -87,13 +103,24 @@ def create_group(group: GroupCreate, db: Session) -> int:
             short_name=group.short_name,
             valid_from=group.valid_from,
             valid_until=group.valid_until,
+            created_by=user_id,
+            updated_by=user_id,
         )
-        logger.info("Adding the group to the DB")
         db.add(db_group)
-        logger.info("Committing...")
+        db.flush()
+
+        link_group_to_course(db, db_group.id, group.course_id)
+        add_students_to_group(db, db_group.id, group.course_id, group.student_ids)
+
         db.commit()
-        logger.info("Refreshing...")
         db.refresh(db_group)
+    except IntegrityError:
+        db.rollback()
+        raise ApiError(
+            409,
+            "STUDENT_ALREADY_IN_COURSE_GROUP",
+            "One or more students already belong to another group in this course.",
+        )
     except Exception as e:
         db.rollback()
         logger.info(
@@ -104,9 +131,6 @@ def create_group(group: GroupCreate, db: Session) -> int:
             detail="Something went wrong while storing the group to the database.",
         )
     logger.info(f"Successfully created the group: {db_group}")
-
-    link_group_to_course(db, db_group.id, group.course_id)
-    set_students_group(db, group.student_ids, db_group.id)
 
     return db_group.id
 
@@ -129,7 +153,42 @@ def get_groups_for_instructor(db: Session, user_id: int) -> list[dict]:
     return retrieve_groups_grouped_by_course(db, user_id)
 
 
-def modify_group(db: Session, group_id: int, data: GroupUpdate) -> Group:
+def _audit(db: Session, entity) -> AuditResponse:
+    return AuditResponse(
+        created_at=entity.created_at,
+        created_by=retrieve_user_by_id(db, entity.created_by)
+        if entity.created_by
+        else None,
+        updated_at=entity.updated_at,
+        updated_by=retrieve_user_by_id(db, entity.updated_by)
+        if entity.updated_by
+        else None,
+    )
+
+
+def get_group_detail(db: Session, group_id: int) -> dict:
+    group = retrieve_by_id(db, group_id)
+    if not group:
+        raise ApiError(404, "GROUP_NOT_FOUND", "Student group not found.")
+
+    course_id = retrieve_course_id_for_group(db, group_id)
+    course = retrieve_course_by_id(db, course_id) if course_id else None
+    students = retrieve_students_in_group(db, group_id)
+
+    return {
+        "id": group.id,
+        "name": group.name,
+        "short_name": group.short_name,
+        "valid_from": group.valid_from,
+        "valid_until": group.valid_until,
+        "course_id": course.id if course else None,
+        "course_name": course.name if course else None,
+        "students": [GroupStudentResponse.model_validate(s) for s in students],
+        "audit": _audit(db, group),
+    }
+
+
+def modify_group(db: Session, group_id: int, data: GroupUpdate, user_id: int) -> Group:
     group = retrieve_by_id(db, group_id)
     if not group:
         raise ApiError(404, "GROUP_NOT_FOUND", "Group not found.")
@@ -138,18 +197,54 @@ def modify_group(db: Session, group_id: int, data: GroupUpdate) -> Group:
             409, "GROUP_NAME_ALREADY_EXISTS", "A group with this name already exists."
         )
 
-    if data.student_ids is not None:
-        _validate_student_ids(db, data.student_ids, exclude_group_id=group_id)
-        current_ids = {s.id for s in retrieve_students_in_group(db, group_id)}
-        new_ids = set(data.student_ids)
-        to_remove = current_ids - new_ids
-        to_add = new_ids - current_ids
-        if to_remove:
-            set_students_group(db, list(to_remove), None)
-        if to_add:
-            set_students_group(db, list(to_add), group_id)
+    target_course_id = data.course_id
+    if target_course_id is not None:
+        if not retrieve_course_by_id(db, target_course_id):
+            raise ApiError(400, "VALIDATION_ERROR", "Course not found.")
+    else:
+        target_course_id = retrieve_course_id_for_group(db, group_id)
 
-    return update_group(db, group, data)
+    target_student_ids = (
+        data.student_ids
+        if data.student_ids is not None
+        else retrieve_student_ids_in_group(db, group_id)
+    )
+
+    if data.course_id is not None or data.student_ids is not None:
+        _validate_student_ids(
+            db, target_course_id, target_student_ids, exclude_group_id=group_id
+        )
+
+    try:
+        if data.course_id is not None:
+            set_group_course(db, group_id, data.course_id)
+            # Keep the denormalized course_id on existing membership rows in
+            # sync with the group's new course, even for members not touched
+            # by a student_ids diff below.
+            repoint_group_students_to_course(db, group_id, data.course_id)
+
+        if data.student_ids is not None:
+            current_ids = set(retrieve_student_ids_in_group(db, group_id))
+            new_ids = set(data.student_ids)
+            to_remove = current_ids - new_ids
+            to_add = new_ids - current_ids
+            if to_remove:
+                remove_students_from_group(db, group_id, list(to_remove))
+            if to_add:
+                add_students_to_group(db, group_id, target_course_id, list(to_add))
+
+        update_group(db, group, data, user_id)
+        db.commit()
+        db.refresh(group)
+    except IntegrityError:
+        db.rollback()
+        raise ApiError(
+            409,
+            "STUDENT_ALREADY_IN_COURSE_GROUP",
+            "One or more students already belong to another group in this course.",
+        )
+
+    return group
 
 
 def remove_group(db: Session, group_id: int) -> None:
@@ -181,7 +276,22 @@ def move_student_to_group(db: Session, group_id: int, user_id: int) -> None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found."
         )
-    set_user_group(db, user, group_id)
+    course_id = retrieve_course_id_for_group(db, group_id)
+    if course_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Group is not linked to a course.",
+        )
+
+    conflicts = retrieve_conflicting_group_for_students(
+        db, course_id, [user_id], exclude_group_id=group_id
+    )
+    if user_id in conflicts:
+        remove_students_from_group(db, conflicts[user_id], [user_id])
+
+    if user_id not in retrieve_student_ids_in_group(db, group_id):
+        add_students_to_group(db, group_id, course_id, [user_id])
+    db.commit()
 
 
 def remove_student_from_group(db: Session, group_id: int, user_id: int) -> None:
@@ -191,17 +301,24 @@ def remove_student_from_group(db: Session, group_id: int, user_id: int) -> None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found."
         )
-    if user.group_id != group_id:
+    if user_id not in retrieve_student_ids_in_group(db, group_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User does not belong to this group.",
         )
-    set_user_group(db, user, None)
+    remove_students_from_group(db, group_id, [user_id])
+    db.commit()
 
 
 def import_students_into_group(db: Session, group_id: int, file: UploadFile) -> int:
     _get_group_or_404(db, group_id)
-    return batch_users_for_group(file, group_id, db)
+    course_id = retrieve_course_id_for_group(db, group_id)
+    if course_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Group is not linked to a course.",
+        )
+    return batch_users_for_group(file, group_id, course_id, db)
 
 
 def get_assigned_students_for_instructor(
@@ -230,10 +347,8 @@ def assign_students_to_instructor_for_course(
     db: Session, course_id: int, student_ids: list[int], instructor_id: int
 ) -> None:
     _require_course(db, course_id)
-    group_ids = set(retrieve_group_ids_for_course(db, course_id))
 
-    students = retrieve_students_by_ids(db, student_ids)
-    found_ids = {s.id for s in students if s.group_id in group_ids}
+    found_ids = set(retrieve_student_ids_in_course_groups(db, course_id, student_ids))
     not_in_course = [sid for sid in student_ids if sid not in found_ids]
     if not_in_course:
         raise ApiError(

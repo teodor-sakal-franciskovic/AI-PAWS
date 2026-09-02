@@ -1,6 +1,7 @@
-from pydantic import BaseModel
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
+
+from pydantic import BaseModel
 
 from .rule_group import RuleGroupLink, RuleGroupResponse
 
@@ -10,7 +11,7 @@ class AssignmentCreate(BaseModel):
     start_date: datetime
     end_date: datetime
     submission_mode_id: int
-    percentage_of_points_in_course: Optional[float] = None
+    percentage_of_points_in_course: float | None = None
     rule_groups: list[RuleGroupLink]
 
 
@@ -26,12 +27,12 @@ class AssignmentResponse(BaseModel):
 
 
 class AssignmentUpdate(BaseModel):
-    id: Optional[int] = None
+    id: int | None = None
     name: str
     start_date: datetime
     end_date: datetime
     submission_mode_id: int
-    percentage_of_points_in_course: Optional[float] = None
+    percentage_of_points_in_course: float | None = None
     rule_groups: list[RuleGroupLink]
 
 
@@ -42,7 +43,7 @@ class AssignmentDetailResponse(BaseModel):
     end_date: datetime
     submission_mode_id: int
     submission_mode_name: str
-    percentage_of_points_in_course: Optional[float] = None
+    percentage_of_points_in_course: float | None = None
     rule_groups: list[RuleGroupResponse] = []
 
     class Config:

@@ -1,38 +1,38 @@
 import io
 import zipfile
-
-from sqlalchemy.orm import Session
-from fastapi.responses import StreamingResponse
 from urllib.parse import quote
+
+from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
 
 from ..models.assignment import Assignment
 from ..models.course_group import CourseGroup
-from ..models.user import User
 from ..models.submission import Submission
-
+from ..models.user import User
+from ..repository.assignment import (
+    retrieve_active_assignments_for_group,
+    retrieve_all,
+    retrieve_past_submissions_with_assignments_for_user,
+)
+from ..repository.assignment import (
+    retrieve_by_id as retrieve_assignment_by_id,
+)
+from ..repository.chapter import retrieve_by_id as retrieve_chapter_by_id
+from ..repository.group import retrieve_group_ids_for_student
+from ..repository.submission import (
+    retrieve_by_assignment_id,
+    retrieve_rule_feedbacks_for_submission,
+)
+from ..repository.submission_mode import (
+    retrieve_by_id as retrieve_submission_mode_by_id,
+)
 from ..schemas.assignment import (
     AssignmentCreate,
     SubmittedSubmissionForAssignmentResponse,
 )
 from ..schemas.submission import SubmissionResponse
-
 from ..utils.assignment import create_assignment_response
 from ..utils.logger import logger
-
-from ..repository.assignment import (
-    retrieve_active_assignments_for_group,
-    retrieve_past_submissions_with_assignments_for_user,
-    retrieve_by_id as retrieve_assignment_by_id,
-    retrieve_all,
-)
-from ..repository.submission import (
-    retrieve_rule_feedbacks_for_submission,
-    retrieve_by_assignment_id,
-)
-from ..repository.submission_mode import (
-    retrieve_by_id as retrieve_submission_mode_by_id,
-)
-from ..repository.chapter import retrieve_by_id as retrieve_chapter_by_id
 
 
 def _build_submission_response(db: Session, submission: Submission):
@@ -100,8 +100,9 @@ def retrieve_assignments(db: Session):
 
 def retrieve_active_assignments_for_student(db: Session, user: User):
     logger.info(f"Retrieving active assignments for user {user.id}")
+    group_ids = retrieve_group_ids_for_student(db, user.id)
     submissions_with_assignments = retrieve_active_assignments_for_group(
-        db, user.group_id, user.id
+        db, group_ids, user.id
     )
     responses = _build_assignment_responses(db, submissions_with_assignments)
     logger.info("Successfully retrieved active assignments")
@@ -110,8 +111,9 @@ def retrieve_active_assignments_for_student(db: Session, user: User):
 
 def retrieve_previous_assignments_for_student(db: Session, user: User):
     logger.info(f"Retrieving finished assignments for the user {user.id}")
+    group_ids = retrieve_group_ids_for_student(db, user.id)
     submissions_with_assignments = retrieve_past_submissions_with_assignments_for_user(
-        db, user.group_id, user.id
+        db, group_ids, user.id
     )
     responses = _build_assignment_responses(db, submissions_with_assignments)
     logger.info("Successfully retrieved finished assignments")

@@ -12,12 +12,14 @@ from ..models.user import User
 from ..schemas.group import (
     CourseGroupsResponse,
     GroupCreate,
+    GroupDetailResponse,
     GroupResponse,
     GroupUpdate,
 )
 from ..schemas.response import GenericResponse, IdResponse
 from ..services.group import (
     create_group,
+    get_group_detail,
     get_groups_for_instructor,
     get_students_in_group,
     import_students_into_group,
@@ -53,9 +55,10 @@ def create_group_endpoint(
         ),
     ],
     role: Annotated[Role, Depends(require_role("Instructor"))],
+    current_user: Annotated[User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
 ):
-    group_id = create_group(group, db)
+    group_id = create_group(group, db, current_user.id)
     return JSONResponse(
         status_code=201,
         content=GenericResponse(
@@ -99,14 +102,31 @@ def retrieve_groups_for_instructor_endpoint(
     )
 
 
+@router.get("/{group_id}", response_model=GenericResponse)
+def retrieve_group_detail_endpoint(
+    group_id: int,
+    role: Annotated[Role, Depends(require_role("Instructor"))],
+    db: Session = Depends(get_db),
+):
+    detail = get_group_detail(db, group_id)
+    return JSONResponse(
+        status_code=200,
+        content=GenericResponse(
+            message="Student group retrieved successfully.",
+            data=GroupDetailResponse.model_validate(detail).model_dump(mode="json"),
+        ).model_dump(),
+    )
+
+
 @router.put("/{group_id}", status_code=204)
 def update_group_endpoint(
     group_id: int,
     data: GroupUpdate,
     role: Annotated[Role, Depends(require_role("Instructor"))],
+    current_user: Annotated[User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
 ):
-    modify_group(db, group_id, data)
+    modify_group(db, group_id, data, current_user.id)
     return Response(status_code=204)
 
 

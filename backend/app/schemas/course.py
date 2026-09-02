@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+
 from pydantic import BaseModel
 
 from .assignment import AssignmentCreate, AssignmentDetailResponse, AssignmentUpdate
@@ -13,7 +13,7 @@ class CourseCreate(BaseModel):
     name: str
     start_date: datetime
     end_date: datetime
-    max_amount_of_points: Optional[float] = None
+    max_amount_of_points: float | None = None
     feedback_language_id: int
     submission_language_ids: list[int]
     instructor_ids: list[int]
@@ -24,7 +24,7 @@ class CourseUpdate(BaseModel):
     name: str
     start_date: datetime
     end_date: datetime
-    max_amount_of_points: Optional[float] = None
+    max_amount_of_points: float | None = None
     feedback_language_id: int
     submission_language_ids: list[int]
     instructor_ids: list[int]
@@ -36,7 +36,7 @@ class CourseDetailResponse(BaseModel):
     name: str
     start_date: datetime
     end_date: datetime
-    max_amount_of_points: Optional[float] = None
+    max_amount_of_points: float | None = None
     feedback_language: LanguageResponse
     submission_languages: list[LanguageResponse] = []
     student_groups: list[StudentGroupResponse] = []

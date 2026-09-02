@@ -134,7 +134,6 @@ def register_students(
             faculty=student.faculty,
             index=student.index,
             role_id=student_role.id,
-            group_id=None,
             created_by=created_by,
         )
         created.append((user, raw_password))
@@ -151,7 +150,9 @@ def register_students(
         )
 
     logger.info(f"{len(created)} students registered successfully")
-    email_jobs = [(user.name, user.email, raw_password) for user, raw_password in created]
+    email_jobs = [
+        (user.name, user.email, raw_password) for user, raw_password in created
+    ]
     return len(created), email_jobs
 
 

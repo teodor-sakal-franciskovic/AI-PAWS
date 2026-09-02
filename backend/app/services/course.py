@@ -14,6 +14,7 @@ from ..repository.course import (
 from ..repository.course import (
     update_course as update_course_repo,
 )
+from ..repository.group import retrieve_group_ids_for_student
 from ..schemas.course import CourseCreate, CourseUpdate
 
 
@@ -43,8 +44,9 @@ def get_courses_for_instructor(db: Session, user_id: int) -> list[dict]:
     return retrieve_course_details_for_instructor(db, user_id)
 
 
-def get_courses_for_student(db: Session, group_id: int) -> list[dict]:
-    return retrieve_course_details_for_student(db, group_id)
+def get_courses_for_student(db: Session, student_id: int) -> list[dict]:
+    group_ids = retrieve_group_ids_for_student(db, student_id)
+    return retrieve_course_details_for_student(db, group_ids)
 
 
 def get_all_courses(db: Session) -> list[dict]:

@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from typing import Optional
 
 from .feedback import EvaluativeFeedbackSchema
 from .fulfillment import EvaluativeFulfillmentSchema
@@ -20,7 +19,7 @@ class RuleCreate(BaseModel):
 
 
 class RuleUpdate(BaseModel):
-    id: Optional[int] = None
+    id: int | None = None
     name: str
     user_description: str
     include_in_prompt: bool = True

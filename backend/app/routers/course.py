@@ -78,12 +78,7 @@ def get_courses_for_student_endpoint(
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
 ):
-    if not current_user.group_id:
-        return JSONResponse(
-            status_code=200,
-            content=GenericResponse(message="No courses found.", data=[]).model_dump(),
-        )
-    courses = get_courses_for_student(db, current_user.group_id)
+    courses = get_courses_for_student(db, current_user.id)
     return JSONResponse(
         status_code=200,
         content=GenericResponse(

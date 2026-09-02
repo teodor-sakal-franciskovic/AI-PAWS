@@ -1,40 +1,44 @@
 import secrets
 from io import StringIO
-from typing import List
 
 import pandas as pd
 from fastapi import HTTPException, UploadFile
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
+from ..models.group_student import GroupStudent
 from ..models.role import Role
-from ..models.user import User
 from ..models.submission import Submission
-
+from ..models.user import User
+from ..repository.feedback import update_final_feedback_text
+from ..repository.fulfillment import update_final_fulfillment_value
+from ..repository.group import retrieve_course_id_for_group
 from ..repository.role import (
     retrieve_by_id as retrieve_role_by_id,
-    retrieve_by_name as retrieve_role_by_name,
 )
-from ..repository.user import (
-    retrieve_all_by_role_name,
-    retrieve_by_email_from_user,
-    retrieve_evaluative_submissions,
-    retrieve_by_id as retrieve_user_by_id_db,
+from ..repository.role import (
+    retrieve_by_name as retrieve_role_by_name,
 )
 from ..repository.submission import update_grade
 from ..repository.submission_mode import (
     retrieve_by_name as retrieve_submission_mode_by_name,
 )
-from ..repository.feedback import update_final_feedback_text
-from ..repository.fulfillment import update_final_fulfillment_value
+from ..repository.user import (
+    retrieve_all_by_role_name,
+    retrieve_by_email_from_user,
+    retrieve_evaluative_submissions,
+)
+from ..repository.user import (
+    retrieve_by_id as retrieve_user_by_id_db,
+)
+from ..schemas.submission import (
+    TAEvaluationGrade,
+    TAEvaluationGradesRequest,
+)
 from ..schemas.user import (
     UpdatedUserInfo,
     UpdatedUserPassword,
     UserCreate,
-)
-from ..schemas.submission import (
-    TAEvaluationGradesRequest,
-    TAEvaluationGrade,
 )
 from ..utils.auth import get_password_hash
 from ..utils.db import add, commit_and_refresh
@@ -67,7 +71,6 @@ def create_user(user: UserCreate, db: Session):
             name=user.name,
             surname=user.surname,
             role_id=user.role_id,
-            group_id=None,
         )
         add(db, db_user)
         commit_and_refresh(db, db_user)
@@ -109,7 +112,7 @@ def deactivate_user(user: User, db: Session):
     commit_and_refresh(db, user)
 
 
-def _send_batch_emails(users: List[tuple[User, dict]]):
+def _send_batch_emails(users: list[tuple[User, dict]]):
     for _, meta in users:
         email_body = get_email_body(meta["row"], meta["raw_password"])
         try:
@@ -132,7 +135,7 @@ def retrieve_evaluative_submissions_for_ta_students(db: Session, ta: User):
     return group_submission_data(submissions)
 
 
-def _calculate_achieved_percentage(grades: List[TAEvaluationGrade]) -> float:
+def _calculate_achieved_percentage(grades: list[TAEvaluationGrade]) -> float:
     max_points = 2 * len(grades)
     achieved_points = sum(grade.final_grade for grade in grades)
     return achieved_points / max_points
@@ -141,7 +144,7 @@ def _calculate_achieved_percentage(grades: List[TAEvaluationGrade]) -> float:
 def grade_submission(
     db: Session, submission_id: int, ta_evaluation_grades: TAEvaluationGradesRequest
 ):
-    grades: List[TAEvaluationGrade] = ta_evaluation_grades.evaluation_grades
+    grades: list[TAEvaluationGrade] = ta_evaluation_grades.evaluation_grades
     for grade in grades:
         update_final_feedback_text(db, grade.feedback_id, grade.final_feedback)
         update_final_fulfillment_value(db, grade.fulfillment_id, grade.final_grade)
@@ -153,7 +156,7 @@ def retrieve_user_by_id(db: Session, id: int) -> User:
     return retrieve_user_by_id_db(db, id)
 
 
-def retrieve_instructors(db: Session) -> List[User]:
+def retrieve_instructors(db: Session) -> list[User]:
     return retrieve_all_by_role_name(db, "Instructor")
 
 
@@ -187,9 +190,7 @@ def _parse_batch_csv(file: UploadFile, required_columns: set) -> pd.DataFrame:
     return df
 
 
-def _create_batch_user_objects(
-    df: pd.DataFrame, role: Role, group_id: int = None
-) -> List[tuple[User, dict]]:
+def _create_batch_user_objects(df: pd.DataFrame, role: Role) -> list[tuple[User, dict]]:
     users = []
     logger.info("Creating student objects...")
     for _, row in df.iterrows():
@@ -201,16 +202,17 @@ def _create_batch_user_objects(
             name=row["Ime"],
             surname=row["Prezime"],
             role_id=role.id,
-            group_id=group_id if group_id is not None else int(row["Grupa"]),
             index=row["Indeks"],
         )
         users.append((user, {"row": row, "raw_password": raw_password}))
     return users
 
 
-def _persist_batch_users(db: Session, users: List[tuple[User, dict]]) -> None:
+def _persist_batch_users(db: Session, users: list[tuple[User, dict]]) -> None:
     try:
-        db.bulk_save_objects([user for user, _ in users])
+        # return_defaults populates each user's auto-generated id after the
+        # insert, needed to enroll them into a group_student row afterwards.
+        db.bulk_save_objects([user for user, _ in users], return_defaults=True)
         db.commit()
     except Exception as e:
         db.rollback()
@@ -227,22 +229,56 @@ def batch_users(file: UploadFile, db: Session):
     if not student_role:
         raise HTTPException(status_code=404, detail="Student role not found")
 
+    course_id_by_group: dict[int, int] = {}
+    for group_id in {int(v) for v in df["Grupa"]}:
+        course_id = retrieve_course_id_for_group(db, group_id)
+        if course_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Group {group_id} is not linked to a course.",
+            )
+        course_id_by_group[group_id] = course_id
+
     users = _create_batch_user_objects(df, student_role)
     _persist_batch_users(db, users)
+
+    try:
+        for user, meta in users:
+            group_id = int(meta["row"]["Grupa"])
+            db.add(
+                GroupStudent(
+                    group_id=group_id,
+                    student_id=user.id,
+                    course_id=course_id_by_group[group_id],
+                )
+            )
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Users were created but could not be enrolled into their groups: {e}",
+        )
 
     logger.info(f"{len(users)} users imported successfully")
     _send_batch_emails(users)
 
 
-def batch_users_for_group(file: UploadFile, group_id: int, db: Session) -> int:
+def batch_users_for_group(
+    file: UploadFile, group_id: int, course_id: int, db: Session
+) -> int:
     df = _parse_batch_csv(file, GROUP_BATCH_REQUIRED_COLUMNS)
 
     student_role = retrieve_role_by_name(db, "Student")
     if not student_role:
         raise HTTPException(status_code=404, detail="Student role not found")
 
-    users = _create_batch_user_objects(df, student_role, group_id=group_id)
+    users = _create_batch_user_objects(df, student_role)
     _persist_batch_users(db, users)
+
+    for user, _ in users:
+        db.add(GroupStudent(group_id=group_id, student_id=user.id, course_id=course_id))
+    db.commit()
 
     logger.info(f"{len(users)} users imported into group {group_id}")
     _send_batch_emails(users)

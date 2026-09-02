@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from .audit import AuditResponse
+
 
 class GroupCreate(BaseModel):
     name: str
@@ -24,6 +26,7 @@ class GroupUpdate(BaseModel):
     short_name: str | None = None
     valid_from: datetime | None = None
     valid_until: datetime | None = None
+    course_id: int | None = None
     student_ids: list[int] | None = None
 
 
@@ -70,3 +73,17 @@ class GroupStudentResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class GroupDetailResponse(BaseModel):
+    """The group as returned by GET /groups/{group_id}."""
+
+    id: int
+    name: str
+    short_name: str | None = None
+    valid_from: datetime
+    valid_until: datetime
+    course_id: int | None = None
+    course_name: str | None = None
+    students: list[GroupStudentResponse] = []
+    audit: AuditResponse

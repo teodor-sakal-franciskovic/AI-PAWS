@@ -243,8 +243,10 @@ def retrieve_course_details_for_instructor(db: Session, user_id: int) -> list[di
     return [retrieve_course_detail(db, c.id) for c in courses]
 
 
-def retrieve_course_details_for_student(db: Session, group_id: int) -> list[dict]:
-    courses = retrieve_courses_for_student(db, group_id)
+def retrieve_course_details_for_student(
+    db: Session, group_ids: list[int]
+) -> list[dict]:
+    courses = retrieve_courses_for_student(db, group_ids)
     return [retrieve_course_detail(db, c.id) for c in courses]
 
 
@@ -264,11 +266,14 @@ def retrieve_courses_for_instructor(db: Session, user_id: int) -> list[Course]:
     )
 
 
-def retrieve_courses_for_student(db: Session, group_id: int) -> list[Course]:
+def retrieve_courses_for_student(db: Session, group_ids: list[int]) -> list[Course]:
+    if not group_ids:
+        return []
     return (
         db.query(Course)
         .join(CourseGroup, CourseGroup.course_id == Course.id)
-        .filter(CourseGroup.group_id == group_id, Course.is_active.is_(True))
+        .filter(CourseGroup.group_id.in_(group_ids), Course.is_active.is_(True))
+        .distinct()
         .all()
     )
 

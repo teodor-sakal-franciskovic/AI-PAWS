@@ -26,6 +26,5 @@ class User(AcademicWritingSchema):
     created_at = Column(
         "created_at", TIMESTAMP, nullable=False, server_default=func.now()
     )
-    group_id = Column("group_id", Integer, ForeignKey("group.id"), nullable=True)
     faculty = Column("faculty", String, nullable=True)
     created_by = Column("created_by", Integer, ForeignKey("user.id"), nullable=True)
