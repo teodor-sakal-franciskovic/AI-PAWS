@@ -875,7 +875,7 @@ data part is None, only the message gets returned.
 ## /groups
 - "Student groups" are the same `Group` entity documented in the `## /groups` section above (v1) — there's no separate `/student_groups` endpoint.
 - A group is tied to exactly one course at a time. The course it's tied to **can be changed later** via `PUT /{group_id}`.
-- Membership rule: a student can belong to groups on **different** courses at the same time (e.g. one group for "Web Programming", another for "Databases"), but can only be in **one** group per course. Trying to add a student to a group when they're already in a different group *on that same course* is rejected with `409 STUDENT_ALREADY_IN_COURSE_GROUP`. This replaces the old "one group system-wide" rule.
+- Membership rule: a student can belong to groups on **different** courses at the same time (e.g. one group for "Web Programming", another for "Databases"), but can only be in **one** group per course. 
 - Instructor self-assignment (picking which students are "theirs") is **course-scoped, not group-scoped** — a course can have multiple groups, and an instructor doesn't care which group a student came from. See `GET /courses/{course_id}/students/unassigned`, `POST /courses/{course_id}/students/assign`, and `POST /courses/{course_id}/students/unassign` in the `## /courses` section above.
 - Authorization: any authenticated `Instructor` can create/view/edit a group on any active course — there's no per-course ownership check (matches every other course-linked endpoint in this API, e.g. the course-scoped assign/unassign above). Admin-level restrictions (limiting group management to specific instructors) are a known open item, not yet designed.
 ### Brief Summary
