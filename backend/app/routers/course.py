@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
@@ -25,6 +25,7 @@ from ..services.course import (
 from ..services.group import (
     assign_students_to_instructor_for_course,
     get_assigned_students_for_instructor,
+    get_available_students_for_course,
     get_unassigned_students_for_course,
     unassign_students_from_instructor_for_course,
 )
@@ -194,6 +195,33 @@ def get_unassigned_students_for_course_endpoint(
         status_code=200,
         content=GenericResponse(
             message="Successfully retrieved unassigned students for this course.",
+            data=[s.model_dump(mode="json") for s in students],
+        ).model_dump(),
+    )
+
+
+@router.get("/{course_id}/students/available-for-group", response_model=GenericResponse)
+def get_available_students_for_group_endpoint(
+    course_id: int,
+    role: Annotated[Role, Depends(require_role("Instructor"))],
+    excluded_ids: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    try:
+        parsed_excluded_ids = (
+            [int(v) for v in excluded_ids.split(",") if v.strip()]
+            if excluded_ids
+            else []
+        )
+    except ValueError:
+        raise ApiError(
+            400, "VALIDATION_ERROR", "excluded_ids must be a comma-separated list of integers."
+        )
+    students = get_available_students_for_course(db, course_id, parsed_excluded_ids)
+    return JSONResponse(
+        status_code=200,
+        content=GenericResponse(
+            message="Successfully retrieved available students.",
             data=[s.model_dump(mode="json") for s in students],
         ).model_dump(),
     )

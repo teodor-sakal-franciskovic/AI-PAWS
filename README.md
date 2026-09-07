@@ -575,6 +575,7 @@ data part is None, only the message gets returned.
 | GET    | `/check-name?name=&exclude_id=`            | Check whether a course name is already in use. `exclude_id` is optional and excludes the course being edited from the check           | Called on blur of the "Course name" field when creating/editing a course                            |
 | GET    | `/{course_id}/students/mine`            | Retrieval of the logged-in instructor's own assigned students for this course           | Instructor's "my students" view for a course                            |
 | GET    | `/{course_id}/students/unassigned`            | Retrieval of every student across **all** of this course's groups that has no instructor yet — a course can have multiple groups, and an instructor doesn't care which group a student is in, just whether they're picked | Instructor's "pick your students" screen, course-wide            |
+| GET    | `/{course_id}/students/available-for-group?excluded_ids=57,61`            | Retrieval of every registered, active student **not already in a group on this course**, minus any `excluded_ids` sent (comma-separated). Returns the full matching list, unpaginated | The "add students" picker when creating or editing a student group |
 | POST   | `/{course_id}/students/assign`            | Self-assigns the given students (from any of the course's groups) to the logged-in instructor           | Confirming a course-wide selection            |
 | POST   | `/{course_id}/students/unassign`            | Un-assigns the given students (a batch — send a list of 1 to unassign just one) from whichever instructor currently has them, for this course           | "Undo"/reassign, course-wide            |
 
@@ -732,6 +733,10 @@ data part is None, only the message gets returned.
 ```
 #### `GET /{course_id}/students/unassigned`
 - Same shape as `GET /{course_id}/students/mine` above, but the unassigned pool — aggregated across every group linked to this course.
+- `404 Not Found`, code `COURSE_NOT_FOUND`.
+#### `GET /{course_id}/students/available-for-group`
+- Same item shape as `GET /{course_id}/students/mine` above (`id`, `name`, `surname`, `email`, `index`, `faculty`, `is_active`).
+- `excluded_ids` is an optional single query param holding a comma-separated list of ids (`?excluded_ids=57,61`)
 - `404 Not Found`, code `COURSE_NOT_FOUND`.
 #### `POST /{course_id}/students/assign`
 ```json
@@ -1042,7 +1047,7 @@ data part is None, only the message gets returned.
 | Method | Path                      | Description                                   | FE Usage                                 |
 |--------|---------------------------|-----------------------------------------------|----------------------------------------------|
 | POST   | `/batch`            | Bulk registration of students from a JSON list (built from manual entry, CSV/Excel import, or a clipboard paste — the FE normalizes all of those to the same JSON shape before sending)           | Student registration screen            |
-| GET    | `/search?email=&name=&surname=&faculty=&index=&page=&page_size=`            | Paginated, filterable search over registered students           | "Find my students" screen when building a group — filter by faculty/index/etc. before adding to a group            |
+| GET    | `/search?email=&name=&surname=&faculty=&index=`            | Filterable search over registered students. Returns the full matching list, unpaginated (by design — the FE table handles filtering/sorting/pagination client-side)           | "Find my students" screen when building a group — filter by faculty/index/etc. before adding to a group            |
 
 ### Body Examples
 #### `POST /batch`
@@ -1112,24 +1117,20 @@ data part is None, only the message gets returned.
   - Possible per-row `code`s: `STUDENT_EMAIL_INVALID`, `STUDENT_EMAIL_DUPLICATED_IN_BATCH`, `STUDENT_INDEX_DUPLICATED_IN_BATCH`, `STUDENT_EMAIL_ALREADY_EXISTS`, `STUDENT_INDEX_ALREADY_EXISTS`.
 #### `GET /search`
 ```json
-{
-  "items": [
-    {
-      "id": 58,
-      "name": "Ana",
-      "surname": "Anic",
-      "email": "ana@example.com",
-      "index": "SV-2-2026",
-      "faculty": "FTN",
-      "is_active": true
-    },
-    {
-      ...
-    }
-  ],
-  "total": 42,
-  "page": 1,
-  "page_size": 25
-}
+[
+  {
+    "id": 58,
+    "name": "Ana",
+    "surname": "Anic",
+    "email": "ana@example.com",
+    "index": "SV-2-2026",
+    "faculty": "FTN",
+    "is_active": true
+  },
+  {
+    ...
+  }
+]
 ```
-- All filters are optional and match as case-insensitive substrings. `page_size` is capped at 100 (default 25) to avoid pulling the whole student table at once — use `total` to drive pagination on the FE.
+- All filters are optional and match as case-insensitive substrings.
+- No pagination or server-side limit: the full matching list is returned in one response (expected to be at most a few thousand rows), for the FE table (e.g. Tabulator) to filter/sort/paginate client-side — same convention as `GET /courses/{course_id}/students/available-for-group` above.

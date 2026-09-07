@@ -1,14 +1,5 @@
 from pydantic import BaseModel, field_validator
 
-from .group import GroupStudentResponse
-
-
-class StudentSearchResponse(BaseModel):
-    items: list[GroupStudentResponse]
-    total: int
-    page: int
-    page_size: int
-
 
 class StudentBatchItem(BaseModel):
     name: str

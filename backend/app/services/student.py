@@ -13,11 +13,7 @@ from ..repository.student import (
     search_students,
 )
 from ..schemas.group import GroupStudentResponse
-from ..schemas.student import (
-    StudentBatchErrorItem,
-    StudentBatchItem,
-    StudentSearchResponse,
-)
+from ..schemas.student import StudentBatchErrorItem, StudentBatchItem
 from ..utils.email import get_email_body, send_email
 from ..utils.logger import logger
 
@@ -176,19 +172,10 @@ def search_students_service(
     surname: str | None,
     faculty: str | None,
     index: str | None,
-    page: int,
-    page_size: int,
-) -> StudentSearchResponse:
+) -> list[GroupStudentResponse]:
     student_role = retrieve_role_by_name(db, "Student")
     if not student_role:
         raise ApiError(500, "INTERNAL_ERROR", "Student role not found.")
 
-    items, total = search_students(
-        db, student_role.id, email, name, surname, faculty, index, page, page_size
-    )
-    return StudentSearchResponse(
-        items=[GroupStudentResponse.model_validate(u) for u in items],
-        total=total,
-        page=page,
-        page_size=page_size,
-    )
+    items = search_students(db, student_role.id, email, name, surname, faculty, index)
+    return [GroupStudentResponse.model_validate(u) for u in items]

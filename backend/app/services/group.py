@@ -15,6 +15,7 @@ from ..repository.group import (
     retrieve_all_valid,
     retrieve_already_assigned_student_ids,
     retrieve_assigned_students_for_instructor,
+    retrieve_available_students_for_course,
     retrieve_by_id,
     retrieve_conflicting_group_for_students,
     retrieve_course_id_for_group,
@@ -340,6 +341,19 @@ def get_unassigned_students_for_course(
     _require_course(db, course_id)
     group_ids = retrieve_group_ids_for_course(db, course_id)
     students = retrieve_unassigned_students_for_course(db, course_id, group_ids)
+    return [GroupStudentResponse.model_validate(s) for s in students]
+
+
+def get_available_students_for_course(
+    db: Session, course_id: int, excluded_ids: list[int]
+) -> list[GroupStudentResponse]:
+    """Registered, active students not already in a group on this course (minus
+    excluded_ids), for the "add students" picker when creating/editing a group."""
+    _require_course(db, course_id)
+    student_role = retrieve_role_by_name(db, "Student")
+    students = retrieve_available_students_for_course(
+        db, course_id, student_role.id, excluded_ids
+    )
     return [GroupStudentResponse.model_validate(s) for s in students]
 
 

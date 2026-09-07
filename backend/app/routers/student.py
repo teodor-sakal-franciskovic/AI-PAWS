@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -50,17 +50,13 @@ def search_students_endpoint(
     surname: str | None = None,
     faculty: str | None = None,
     index: str | None = None,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(25, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    result = search_students_service(
-        db, email, name, surname, faculty, index, page, page_size
-    )
+    result = search_students_service(db, email, name, surname, faculty, index)
     return JSONResponse(
         status_code=200,
         content=GenericResponse(
             message="Successfully searched students.",
-            data=result.model_dump(mode="json"),
+            data=[s.model_dump(mode="json") for s in result],
         ).model_dump(),
     )

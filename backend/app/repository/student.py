@@ -1,4 +1,3 @@
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..models.user import User
@@ -12,9 +11,7 @@ def search_students(
     surname: str | None = None,
     faculty: str | None = None,
     index: str | None = None,
-    page: int = 1,
-    page_size: int = 25,
-) -> tuple[list[User], int]:
+) -> list[User]:
     query = db.query(User).filter(User.role_id == role_id)
 
     if email:
@@ -28,15 +25,7 @@ def search_students(
     if index:
         query = query.filter(User.index.ilike(f"%{index}%"))
 
-    total = query.with_entities(func.count(User.id)).scalar() or 0
-
-    items = (
-        query.order_by(User.surname, User.name)
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
-    )
-    return items, total
+    return query.order_by(User.surname, User.name).all()
 
 
 def retrieve_by_ids(db: Session, user_ids: list[int]) -> list[User]:

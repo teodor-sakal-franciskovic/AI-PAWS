@@ -1,3 +1,5 @@
+from typing import List, Optional
+
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -229,6 +231,24 @@ def retrieve_unassigned_students_for_course(
         .order_by(User.surname, User.name)
         .all()
     )
+
+
+def retrieve_available_students_for_course(
+    db: Session, course_id: int, student_role_id: int, excluded_ids: List[int]
+) -> List[User]:
+    """Registered, active students not already in a group on this course, for
+    populating the "add students to this group" picker during group create/edit."""
+    course_member_subquery = db.query(GroupStudent.student_id).filter(
+        GroupStudent.course_id == course_id
+    )
+    query = db.query(User).filter(
+        User.role_id == student_role_id,
+        User.is_active.is_(True),
+        ~User.id.in_(course_member_subquery),
+    )
+    if excluded_ids:
+        query = query.filter(~User.id.in_(excluded_ids))
+    return query.order_by(User.surname, User.name).all()
 
 
 def retrieve_already_assigned_student_ids(
