@@ -23,11 +23,10 @@ from ..services.course import (
     update_course,
 )
 from ..services.group import (
-    assign_students_to_instructor_for_course,
     get_assigned_students_for_instructor,
     get_available_students_for_course,
     get_unassigned_students_for_course,
-    unassign_students_from_instructor_for_course,
+    set_assigned_students_for_instructor,
 )
 
 router = APIRouter(
@@ -227,26 +226,15 @@ def get_available_students_for_group_endpoint(
     )
 
 
-@router.post("/{course_id}/students/assign", status_code=204)
-def assign_students_for_course_endpoint(
+@router.put("/{course_id}/students/mine", status_code=204)
+def set_my_students_for_course_endpoint(
     course_id: int,
     data: StudentIdsRequest,
     role: Annotated[Role, Depends(require_role("Instructor"))],
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
 ):
-    assign_students_to_instructor_for_course(
+    set_assigned_students_for_instructor(
         db, course_id, data.student_ids, current_user.id
     )
-    return Response(status_code=204)
-
-
-@router.post("/{course_id}/students/unassign", status_code=204)
-def unassign_students_for_course_endpoint(
-    course_id: int,
-    data: StudentIdsRequest,
-    role: Annotated[Role, Depends(require_role("Instructor"))],
-    db: Session = Depends(get_db),
-):
-    unassign_students_from_instructor_for_course(db, course_id, data.student_ids)
     return Response(status_code=204)

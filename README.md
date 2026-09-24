@@ -576,8 +576,7 @@ data part is None, only the message gets returned.
 | GET    | `/{course_id}/students/mine`            | Retrieval of the logged-in instructor's own assigned students for this course           | Instructor's "my students" view for a course                            |
 | GET    | `/{course_id}/students/unassigned`            | Retrieval of every student across **all** of this course's groups that has no instructor yet — a course can have multiple groups, and an instructor doesn't care which group a student is in, just whether they're picked | Instructor's "pick your students" screen, course-wide            |
 | GET    | `/{course_id}/students/available-for-group?excluded_ids=57,61`            | Retrieval of every registered, active student **not already in a group on this course**, minus any `excluded_ids` sent (comma-separated). Returns the full matching list, unpaginated | The "add students" picker when creating or editing a student group |
-| POST   | `/{course_id}/students/assign`            | Self-assigns the given students (from any of the course's groups) to the logged-in instructor           | Confirming a course-wide selection            |
-| POST   | `/{course_id}/students/unassign`            | Un-assigns the given students (a batch — send a list of 1 to unassign just one) from whichever instructor currently has them, for this course           | "Undo"/reassign, course-wide            |
+| PUT    | `/{course_id}/students/mine`            | Sets the logged-in instructor's complete list of students for this course (from any of the course's groups). Students added to the list are assigned, students removed from it are unassigned           | Confirming the instructor's course-wide selection            |
 
 ### Body Examples
 #### `POST /`
@@ -738,25 +737,27 @@ data part is None, only the message gets returned.
 - Same item shape as `GET /{course_id}/students/mine` above (`id`, `name`, `surname`, `email`, `index`, `faculty`, `is_active`).
 - `excluded_ids` is an optional single query param holding a comma-separated list of ids (`?excluded_ids=57,61`)
 - `404 Not Found`, code `COURSE_NOT_FOUND`.
-#### `POST /{course_id}/students/assign`
+#### `PUT /{course_id}/students/mine`
 ```json
 {
   "student_ids": [79, 81]
 }
 ```
-- Students can come from **any** of the course's groups in the same call — no need to know which group a student belongs to.
+- `student_ids` is the logged-in instructor's **complete** new list of students for this course, not a delta. Students in the list who aren't yet yours get assigned to you; students currently yours who are missing from the list get unassigned. Send `[]` to unassign all of your students.
+- Only your own assignments are affected — you can't unassign another instructor's students by leaving them out.
+- Students can come from **any** of the course's groups — no need to know which group a student belongs to.
+- All-or-nothing: if anything fails validation, nothing changes.
 - `204 No Content` on success.
-- `400 Bad Request`, code `VALIDATION_ERROR`, if a given student isn't in any group linked to this course.
-- `409 Conflict`, code `STUDENT_ALREADY_ASSIGNED`, if one or more are already taken by another instructor (including a genuine race between two instructors — the loser gets this error).
-#### `POST /{course_id}/students/unassign`
+- `404 Not Found`, code `COURSE_NOT_FOUND`.
+- `400 Bad Request`, code `VALIDATION_ERROR`, if `student_ids` has duplicates, or a newly added student isn't in any group linked to this course.
+- `409 Conflict`, code `STUDENT_ALREADY_ASSIGNED`, if one or more newly added students are already assigned to another instructor (including a genuine race between two instructors — the loser gets this error). The conflicting students are listed in `data`:
 ```json
 {
-  "student_ids": [79]
+  "code": "STUDENT_ALREADY_ASSIGNED",
+  "message": "One or more students are already assigned to another instructor for this course.",
+  "data": { "student_ids": [81] }
 }
 ```
-- Same body shape as `assign` — a batch. Send a single-item list to unassign just one student.
-- `204 No Content` on success.
-- `404 Not Found`, code `ASSIGNMENT_NOT_FOUND`, if any given student currently has no instructor assigned for this course — all-or-nothing, same as the group-scoped version.
 
 ## /rule-groups
 ### Brief Summary
@@ -881,7 +882,7 @@ data part is None, only the message gets returned.
 - "Student groups" are the same `Group` entity documented in the `## /groups` section above (v1) — there's no separate `/student_groups` endpoint.
 - A group is tied to exactly one course at a time. The course it's tied to **can be changed later** via `PUT /{group_id}`.
 - Membership rule: a student can belong to groups on **different** courses at the same time (e.g. one group for "Web Programming", another for "Databases"), but can only be in **one** group per course. 
-- Instructor self-assignment (picking which students are "theirs") is **course-scoped, not group-scoped** — a course can have multiple groups, and an instructor doesn't care which group a student came from. See `GET /courses/{course_id}/students/unassigned`, `POST /courses/{course_id}/students/assign`, and `POST /courses/{course_id}/students/unassign` in the `## /courses` section above.
+- Instructor self-assignment (picking which students are "theirs") is **course-scoped, not group-scoped** — a course can have multiple groups, and an instructor doesn't care which group a student came from. See `GET /courses/{course_id}/students/unassigned`, `GET /courses/{course_id}/students/mine`, and `PUT /courses/{course_id}/students/mine` in the `## /courses` section above.
 - Authorization: any authenticated `Instructor` can create/view/edit a group on any active course — there's no per-course ownership check (matches every other course-linked endpoint in this API, e.g. the course-scoped assign/unassign above). Admin-level restrictions (limiting group management to specific instructors) are a known open item, not yet designed.
 ### Brief Summary
 | Method | Path                      | Description                                   | FE Usage                                 |
@@ -1042,7 +1043,7 @@ data part is None, only the message gets returned.
 ```
 
 ## /students
-- Registration is now a standalone step, separate from group creation — a registered student has no group and no assigned instructor until later steps (`POST /groups/` and `POST /courses/{course_id}/students/assign`).
+- Registration is now a standalone step, separate from group creation — a registered student has no group and no assigned instructor until later steps (`POST /groups/` and `PUT /courses/{course_id}/students/mine`).
 ### Brief Summary
 | Method | Path                      | Description                                   | FE Usage                                 |
 |--------|---------------------------|-----------------------------------------------|----------------------------------------------|

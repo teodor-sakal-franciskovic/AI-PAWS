@@ -14,6 +14,7 @@ from ..repository.group import (
     repoint_group_students_to_course,
     retrieve_all_active,
     retrieve_already_assigned_student_ids,
+    retrieve_assigned_student_ids_for_instructor,
     retrieve_assigned_students_for_instructor,
     retrieve_available_students_for_course,
     retrieve_by_id,
@@ -351,41 +352,48 @@ def get_available_students_for_course(
     return [GroupStudentResponse.model_validate(s) for s in students]
 
 
-def assign_students_to_instructor_for_course(
+def set_assigned_students_for_instructor(
     db: Session, course_id: int, student_ids: list[int], instructor_id: int
 ) -> None:
     _require_course(db, course_id)
 
-    found_ids = set(retrieve_student_ids_in_course_groups(db, course_id, student_ids))
-    not_in_course = [sid for sid in student_ids if sid not in found_ids]
-    if not_in_course:
-        raise ApiError(
-            400,
-            "VALIDATION_ERROR",
-            f"Student(s) not in any group of this course: {', '.join(str(i) for i in not_in_course)}.",
-        )
+    if len(student_ids) != len(set(student_ids)):
+        raise ApiError(400, "VALIDATION_ERROR", "Duplicate student IDs in the request.")
 
-    already_assigned = retrieve_already_assigned_student_ids(db, course_id, student_ids)
-    if already_assigned:
+    current_ids = set(
+        retrieve_assigned_student_ids_for_instructor(db, course_id, instructor_id)
+    )
+    new_ids = set(student_ids)
+    to_add = sorted(new_ids - current_ids)
+    to_remove = sorted(current_ids - new_ids)
+
+    if to_add:
+        found_ids = set(retrieve_student_ids_in_course_groups(db, course_id, to_add))
+        not_in_course = [sid for sid in to_add if sid not in found_ids]
+        if not_in_course:
+            raise ApiError(
+                400,
+                "VALIDATION_ERROR",
+                f"Student(s) not in any group of this course: {', '.join(str(i) for i in not_in_course)}.",
+            )
+
+        taken = retrieve_already_assigned_student_ids(db, course_id, to_add)
+        if taken:
+            raise ApiError(
+                409,
+                "STUDENT_ALREADY_ASSIGNED",
+                "One or more students are already assigned to another instructor for this course.",
+                data={"student_ids": sorted(taken)},
+            )
+
+    try:
+        unassign_students(db, course_id, instructor_id, to_remove)
+        assign_students(db, course_id, to_add, instructor_id)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
         raise ApiError(
             409,
             "STUDENT_ALREADY_ASSIGNED",
-            f"Student(s) already assigned to an instructor for this course: {', '.join(str(i) for i in already_assigned)}.",
+            "One or more students are already assigned to another instructor for this course.",
         )
-
-    assign_students(db, course_id, student_ids, instructor_id)
-
-
-def unassign_students_from_instructor_for_course(
-    db: Session, course_id: int, student_ids: list[int]
-) -> None:
-    _require_course(db, course_id)
-    assigned = set(retrieve_already_assigned_student_ids(db, course_id, student_ids))
-    not_assigned = [sid for sid in student_ids if sid not in assigned]
-    if not_assigned:
-        raise ApiError(
-            404,
-            "ASSIGNMENT_NOT_FOUND",
-            f"Student(s) have no instructor assigned for this course: {', '.join(str(i) for i in not_assigned)}.",
-        )
-    unassign_students(db, course_id, student_ids)

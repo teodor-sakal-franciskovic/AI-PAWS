@@ -1,10 +1,8 @@
 from typing import List, Optional
 
 from sqlalchemy import func, or_
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..exceptions import ApiError
 from ..models.course import Course
 from ..models.course_group import CourseGroup
 from ..models.course_instructor import CourseInstructor
@@ -245,39 +243,43 @@ def retrieve_already_assigned_student_ids(
     return [row[0] for row in rows]
 
 
+def retrieve_assigned_student_ids_for_instructor(
+    db: Session, course_id: int, instructor_id: int
+) -> list[int]:
+    rows = (
+        db.query(CourseStudentInstructor.student_id)
+        .filter(
+            CourseStudentInstructor.course_id == course_id,
+            CourseStudentInstructor.instructor_id == instructor_id,
+        )
+        .all()
+    )
+    return [row[0] for row in rows]
+
+
 def assign_students(
     db: Session, course_id: int, student_ids: list[int], instructor_id: int
 ) -> None:
-    try:
-        for student_id in student_ids:
-            db.add(
-                CourseStudentInstructor(
-                    course_id=course_id,
-                    student_id=student_id,
-                    instructor_id=instructor_id,
-                )
+    for student_id in student_ids:
+        db.add(
+            CourseStudentInstructor(
+                course_id=course_id,
+                student_id=student_id,
+                instructor_id=instructor_id,
             )
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise ApiError(
-            409,
-            "STUDENT_ALREADY_ASSIGNED",
-            "One or more students were already assigned to an instructor for this course.",
         )
 
 
-def unassign_students(db: Session, course_id: int, student_ids: list[int]) -> int:
-    deleted = (
-        db.query(CourseStudentInstructor)
-        .filter(
-            CourseStudentInstructor.course_id == course_id,
-            CourseStudentInstructor.student_id.in_(student_ids),
-        )
-        .delete(synchronize_session=False)
-    )
-    db.commit()
-    return deleted
+def unassign_students(
+    db: Session, course_id: int, instructor_id: int, student_ids: list[int]
+) -> None:
+    if not student_ids:
+        return
+    db.query(CourseStudentInstructor).filter(
+        CourseStudentInstructor.course_id == course_id,
+        CourseStudentInstructor.instructor_id == instructor_id,
+        CourseStudentInstructor.student_id.in_(student_ids),
+    ).delete(synchronize_session=False)
 
 
 def retrieve_assigned_students_for_instructor(
