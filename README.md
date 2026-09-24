@@ -253,7 +253,7 @@ data part is None, only the message gets returned.
 | Method | Path                      | Description                                   | FE Usage                                 |
 |--------|---------------------------|-----------------------------------------------|----------------------------------------------|
 | POST    | `/`            | Creation of a new group           | TA screen for creating student groups for a specific semester                            |
-| GET    | `/`            | Retrieval of active groups           | Used for the TA assignment creation, and for the "student groups" select on the course creation screen (V2)                            |
+| GET    | `/`            | Retrieval of all non-deleted groups, regardless of their `valid_from`/`valid_until` dates           | Used for the TA assignment creation, and for the "student groups" select on the course creation screen (V2)                            |
  
 ### Body Examples
 #### `POST /`
@@ -890,7 +890,7 @@ data part is None, only the message gets returned.
 | GET    | `/{group_id}`            | Full detail of one student group: its course, its current roster, and audit info           | Student group view/edit screen, loading an existing group            |
 | PUT    | `/{group_id}`            | Update of a student group. `course_id`, if sent, re-links the group to a different course. `student_ids`, if sent, fully replaces the group's roster (add/remove); omit either to leave it untouched           | Student group edit screen            |
 | DELETE | `/{group_id}`            | Soft-delete of a student group           | Student group list "delete" action            |
-| GET    | `/`            | Retrieval of active student groups (now includes `short_name`)           | Used for the "student groups" select on the course creation screen                            |
+| GET    | `/`            | Retrieval of all non-deleted student groups, regardless of their `valid_from`/`valid_until` dates (includes `short_name`)           | Used for the "student groups" select on the course creation screen                            |
 
 ### Body Examples
 #### `POST /`

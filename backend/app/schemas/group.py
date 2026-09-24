@@ -76,8 +76,6 @@ class GroupStudentResponse(BaseModel):
 
 
 class GroupDetailResponse(BaseModel):
-    """The group as returned by GET /groups/{group_id}."""
-
     id: int
     name: str
     short_name: str | None = None

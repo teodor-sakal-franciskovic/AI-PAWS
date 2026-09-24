@@ -15,14 +15,8 @@ from ..models.user import User
 from ..schemas.group import GroupUpdate
 
 
-def retrieve_all_valid(db: Session) -> list[Group]:
-    return (
-        db.query(Group)
-        .filter(Group.is_deleted.is_(False))
-        .filter(Group.valid_from <= func.now())
-        .filter(Group.valid_until >= func.now())
-        .all()
-    )
+def retrieve_all_active(db: Session) -> list[Group]:
+    return db.query(Group).filter(Group.is_deleted.is_(False)).all()
 
 
 def retrieve_by_id(db: Session, group_id: int) -> Group | None:
@@ -94,12 +88,10 @@ def retrieve_course_id_for_group(db: Session, group_id: int) -> int | None:
 
 
 def link_group_to_course(db: Session, group_id: int, course_id: int) -> None:
-    """Links a newly-created group to its course. Caller must commit."""
     db.add(CourseGroup(course_id=course_id, group_id=group_id))
 
 
 def set_group_course(db: Session, group_id: int, course_id: int) -> None:
-    """Replaces whichever course a group is currently linked to. Caller must commit."""
     db.query(CourseGroup).filter(CourseGroup.group_id == group_id).delete(
         synchronize_session=False
     )
@@ -107,9 +99,6 @@ def set_group_course(db: Session, group_id: int, course_id: int) -> None:
 
 
 def update_group(db: Session, group: Group, data: GroupUpdate, user_id: int) -> Group:
-    """Updates the group's own fields and audit stamp. Caller must commit.
-    Course/membership changes are handled separately since they touch other
-    tables and need their own conflict handling."""
     updates = data.model_dump(exclude_unset=True, exclude={"student_ids", "course_id"})
     for field, value in updates.items():
         setattr(group, field, value)
@@ -140,8 +129,6 @@ def retrieve_conflicting_group_for_students(
     student_ids: list[int],
     exclude_group_id: int | None = None,
 ) -> dict:
-    """Maps student_id -> group_id for students already in a *different* group
-    of this course (the invariant a student may only be in one group per course)."""
     if not student_ids:
         return {}
     query = db.query(GroupStudent.student_id, GroupStudent.group_id).filter(
@@ -156,7 +143,6 @@ def retrieve_conflicting_group_for_students(
 def add_students_to_group(
     db: Session, group_id: int, course_id: int, student_ids: list[int]
 ) -> None:
-    """Caller must commit."""
     for student_id in student_ids:
         db.add(
             GroupStudent(group_id=group_id, student_id=student_id, course_id=course_id)
@@ -166,8 +152,6 @@ def add_students_to_group(
 def repoint_group_students_to_course(
     db: Session, group_id: int, course_id: int
 ) -> None:
-    """Updates the denormalized course_id on a group's existing membership rows,
-    e.g. after the group itself is moved to a different course. Caller must commit."""
     db.query(GroupStudent).filter(GroupStudent.group_id == group_id).update(
         {GroupStudent.course_id: course_id}, synchronize_session=False
     )
@@ -176,7 +160,6 @@ def repoint_group_students_to_course(
 def remove_students_from_group(
     db: Session, group_id: int, student_ids: list[int]
 ) -> None:
-    """Caller must commit."""
     if not student_ids:
         return
     db.query(GroupStudent).filter(
@@ -187,7 +170,6 @@ def remove_students_from_group(
 def retrieve_student_ids_in_course_groups(
     db: Session, course_id: int, student_ids: list[int]
 ) -> list[int]:
-    """Of the given students, which are in *any* group linked to this course."""
     if not student_ids:
         return []
     rows = (
@@ -236,8 +218,6 @@ def retrieve_unassigned_students_for_course(
 def retrieve_available_students_for_course(
     db: Session, course_id: int, student_role_id: int, excluded_ids: List[int]
 ) -> List[User]:
-    """Registered, active students not already in a group on this course, for
-    populating the "add students to this group" picker during group create/edit."""
     course_member_subquery = db.query(GroupStudent.student_id).filter(
         GroupStudent.course_id == course_id
     )
@@ -316,6 +296,9 @@ def retrieve_assigned_students_for_instructor(
 
 
 def soft_delete_group(db: Session, group: Group) -> None:
+    db.query(GroupStudent).filter(GroupStudent.group_id == group.id).delete(
+        synchronize_session=False
+    )
     group.is_deleted = True
     db.commit()
 

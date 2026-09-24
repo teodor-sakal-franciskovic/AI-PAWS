@@ -12,7 +12,7 @@ from ..repository.group import (
     name_exists,
     remove_students_from_group,
     repoint_group_students_to_course,
-    retrieve_all_valid,
+    retrieve_all_active,
     retrieve_already_assigned_student_ids,
     retrieve_assigned_students_for_instructor,
     retrieve_available_students_for_course,
@@ -137,7 +137,7 @@ def create_group(group: GroupCreate, db: Session, user_id: int) -> int:
 
 
 def retrieve_active_groups(db: Session) -> list[GroupResponse]:
-    groups: list[Group] = retrieve_all_valid(db)
+    groups: list[Group] = retrieve_all_active(db)
     return [
         GroupResponse(
             id=group.id,
@@ -219,9 +219,6 @@ def modify_group(db: Session, group_id: int, data: GroupUpdate, user_id: int) ->
     try:
         if data.course_id is not None:
             set_group_course(db, group_id, data.course_id)
-            # Keep the denormalized course_id on existing membership rows in
-            # sync with the group's new course, even for members not touched
-            # by a student_ids diff below.
             repoint_group_students_to_course(db, group_id, data.course_id)
 
         if data.student_ids is not None:
@@ -337,7 +334,6 @@ def _require_course(db: Session, course_id: int) -> None:
 def get_unassigned_students_for_course(
     db: Session, course_id: int
 ) -> list[GroupStudentResponse]:
-    """Unassigned students across every group linked to this course, not just one."""
     _require_course(db, course_id)
     group_ids = retrieve_group_ids_for_course(db, course_id)
     students = retrieve_unassigned_students_for_course(db, course_id, group_ids)
@@ -347,8 +343,6 @@ def get_unassigned_students_for_course(
 def get_available_students_for_course(
     db: Session, course_id: int, excluded_ids: list[int]
 ) -> list[GroupStudentResponse]:
-    """Registered, active students not already in a group on this course (minus
-    excluded_ids), for the "add students" picker when creating/editing a group."""
     _require_course(db, course_id)
     student_role = retrieve_role_by_name(db, "Student")
     students = retrieve_available_students_for_course(

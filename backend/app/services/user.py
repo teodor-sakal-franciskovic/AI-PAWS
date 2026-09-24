@@ -210,8 +210,6 @@ def _create_batch_user_objects(df: pd.DataFrame, role: Role) -> list[tuple[User,
 
 def _persist_batch_users(db: Session, users: list[tuple[User, dict]]) -> None:
     try:
-        # return_defaults populates each user's auto-generated id after the
-        # insert, needed to enroll them into a group_student row afterwards.
         db.bulk_save_objects([user for user, _ in users], return_defaults=True)
         db.commit()
     except Exception as e:
