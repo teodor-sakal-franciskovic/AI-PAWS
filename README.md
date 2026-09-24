@@ -282,14 +282,18 @@ data part is None, only the message gets returned.
       "name": "G_1_2025",
       "short_name": "G1-2025",
       "valid_from": "2025-01-01T00:00:00",
-      "valid_until": "2025-12-31T23:59:59"
+      "valid_until": "2025-12-31T23:59:59",
+      "course_id": 17,
+      "course_name": "Web Programming"
     },
     {
       "id": 3,
       "name": "G_1_2024-6",
       "short_name": null,
       "valid_from": "2024-01-01T00:00:00",
-      "valid_until": "2026-12-31T23:59:59"
+      "valid_until": "2026-12-31T23:59:59",
+      "course_id": null,
+      "course_name": null
     }
   ]
 ```
@@ -985,13 +989,16 @@ data part is None, only the message gets returned.
     "name": "Business Informatics 2026 - Group A",
     "short_name": "BI 2026-A",
     "valid_from": "2025-01-01T00:00:00",
-    "valid_until": "2025-12-31T23:59:59"
+    "valid_until": "2025-12-31T23:59:59",
+    "course_id": 17,
+    "course_name": "Web Programming"
   },
   {
     ...
   }
 ]
 ```
+- `course_id`/`course_name` are the group's course (same fields as `GET /{group_id}`). Both are `null` if the group isn't linked to a course, or its course was deleted.
 
 ## /languages
 ### Brief Summary

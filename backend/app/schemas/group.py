@@ -45,6 +45,11 @@ class GroupResponse(BaseModel):
         from_attributes = True
 
 
+class GroupWithCourseResponse(GroupResponse):
+    course_id: int | None = None
+    course_name: str | None = None
+
+
 class StudentGroupResponse(BaseModel):
     """Lightweight group representation used for lookups and nested display."""
 

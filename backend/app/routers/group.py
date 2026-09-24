@@ -13,8 +13,8 @@ from ..schemas.group import (
     CourseGroupsResponse,
     GroupCreate,
     GroupDetailResponse,
-    GroupResponse,
     GroupUpdate,
+    GroupWithCourseResponse,
 )
 from ..schemas.response import GenericResponse, IdResponse
 from ..services.group import (
@@ -72,7 +72,7 @@ def create_group_endpoint(
 def retrieve_active_groups_endpoint(
     db: Session = Depends(get_db),
 ) -> GenericResponse:
-    active_groups: list[GroupResponse] = retrieve_active_groups(db)
+    active_groups: list[GroupWithCourseResponse] = retrieve_active_groups(db)
     return JSONResponse(
         status_code=200,
         content=json.loads(

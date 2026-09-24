@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from sqlalchemy import func, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from ..models.course import Course
@@ -13,8 +13,19 @@ from ..models.user import User
 from ..schemas.group import GroupUpdate
 
 
-def retrieve_all_active(db: Session) -> list[Group]:
-    return db.query(Group).filter(Group.is_deleted.is_(False)).all()
+def retrieve_all_active(db: Session) -> list[tuple[Group, int | None, str | None]]:
+    return (
+        db.query(Group, Course.id, Course.name)
+        .outerjoin(CourseGroup, CourseGroup.group_id == Group.id)
+        .outerjoin(
+            Course,
+            and_(Course.id == CourseGroup.course_id, Course.is_active.is_(True)),
+        )
+        .filter(Group.is_deleted.is_(False))
+        .distinct(Group.id)
+        .order_by(Group.id, Course.id.asc().nulls_last())
+        .all()
+    )
 
 
 def retrieve_by_id(db: Session, group_id: int) -> Group | None:

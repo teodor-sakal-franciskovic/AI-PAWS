@@ -37,9 +37,9 @@ from ..repository.user import retrieve_by_id as retrieve_user_by_id
 from ..schemas.audit import AuditResponse
 from ..schemas.group import (
     GroupCreate,
-    GroupResponse,
     GroupStudentResponse,
     GroupUpdate,
+    GroupWithCourseResponse,
 )
 from ..services.user import batch_users_for_group
 from ..utils.logger import logger
@@ -137,17 +137,18 @@ def create_group(group: GroupCreate, db: Session, user_id: int) -> int:
     return db_group.id
 
 
-def retrieve_active_groups(db: Session) -> list[GroupResponse]:
-    groups: list[Group] = retrieve_all_active(db)
+def retrieve_active_groups(db: Session) -> list[GroupWithCourseResponse]:
     return [
-        GroupResponse(
+        GroupWithCourseResponse(
             id=group.id,
             name=group.name,
             short_name=group.short_name,
             valid_from=group.valid_from,
             valid_until=group.valid_until,
+            course_id=course_id,
+            course_name=course_name,
         )
-        for group in groups
+        for group, course_id, course_name in retrieve_all_active(db)
     ]
 
 
