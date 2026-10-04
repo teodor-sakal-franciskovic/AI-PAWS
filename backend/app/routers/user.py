@@ -1,6 +1,5 @@
 import json
 from typing import Annotated
-from copy import deepcopy
 
 from fastapi import (
     APIRouter,
@@ -30,23 +29,13 @@ from ..services.user import (
     update_user_info,
     update_user_password,
     retrieve_evaluative_submissions_for_ta_students,
-    grade_submission,
-    retrieve_user_by_id,
     read_pretest_results,
-)
-from ..services.submission import retrieve_submission
-from ..services.historical_profile import (
-    insert_historical_profile_snapshot,
-    retrieve_updated_student_knowledge_from_evaluative_mode,
 )
 
 from ..tasks.user import generate_initial_student_knowledge
 
-from ..llm.schema import LLMUpdatedKnowledge
 from ..models.role import Role
 from ..models.user import User
-from ..models.submission import Submission
-from ..schemas.submission import TAEvaluationGradesRequest
 from ..schemas.response import GenericResponse
 from ..schemas.user import (
     UpdatedUserInfo,
@@ -190,36 +179,6 @@ def retrieve_my_students_evaluative_submissions(
                 data=evaluative_submissions,
             ).model_dump_json()
         ),
-    )
-
-
-@router.put("/submission/{submission_id}/grade")
-def grade_submission_endpoint(
-    submission_id: int,
-    body: TAEvaluationGradesRequest,
-    role: Annotated[Role, Depends(require_role("Instructor"))],
-    llm=Depends(initialise_llm),
-    db: Session = Depends(get_db),
-):
-    submission: Submission = retrieve_submission(db, submission_id)
-    initial_graded_status = deepcopy(submission.graded)
-    grade_submission(db, submission_id, body)
-    if not initial_graded_status:
-        updated_student_knowledge: LLMUpdatedKnowledge = (
-            retrieve_updated_student_knowledge_from_evaluative_mode(
-                db, llm, body, submission_id
-            )
-        )
-        user: User = retrieve_user_by_id(db, submission.user_id)
-        insert_historical_profile_snapshot(
-            db, user, submission, updated_student_knowledge.updated_knowledge
-        )
-    return JSONResponse(
-        status_code=200,
-        content=GenericResponse(
-            message=f"Successfully graded submission for submission {submission_id}",
-            data=None,
-        ).model_dump(),
     )
 
 

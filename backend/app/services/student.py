@@ -116,7 +116,7 @@ def register_students(
 
     student_role = retrieve_role_by_name(db, "Student")
     if not student_role:
-        raise ApiError(500, "INTERNAL_ERROR", "Student role not found.")
+        raise ApiError(500, "INTERNAL_SERVER_ERROR", "Student role not found.")
 
     created: list[tuple[User, str]] = []
     for student in students:
@@ -175,7 +175,7 @@ def search_students_service(
 ) -> list[GroupStudentResponse]:
     student_role = retrieve_role_by_name(db, "Student")
     if not student_role:
-        raise ApiError(500, "INTERNAL_ERROR", "Student role not found.")
+        raise ApiError(500, "INTERNAL_SERVER_ERROR", "Student role not found.")
 
     items = search_students(db, student_role.id, email, name, surname, faculty, index)
     return [GroupStudentResponse.model_validate(u) for u in items]

@@ -15,14 +15,6 @@ def update_with_additional_text(db: Session, id: int, additional_text: str):
     return feedback
 
 
-def update_final_feedback_text(db: Session, id: int, new_comment: str):
-    feedback = retrieve_by_id(db, id)
-    feedback.final_feedback_text = new_comment
-    db.commit()
-    db.refresh(feedback)
-    return feedback
-
-
 def update_is_valid(db: Session, id: int, is_valid: bool):
     feedback = retrieve_by_id(db, id)
     feedback.is_valid = is_valid

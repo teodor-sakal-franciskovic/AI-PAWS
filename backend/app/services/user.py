@@ -10,8 +10,6 @@ from ..models.group_student import GroupStudent
 from ..models.role import Role
 from ..models.submission import Submission
 from ..models.user import User
-from ..repository.feedback import update_final_feedback_text
-from ..repository.fulfillment import update_final_fulfillment_value
 from ..repository.group import retrieve_course_id_for_group
 from ..repository.role import (
     retrieve_by_id as retrieve_role_by_id,
@@ -19,7 +17,6 @@ from ..repository.role import (
 from ..repository.role import (
     retrieve_by_name as retrieve_role_by_name,
 )
-from ..repository.submission import update_grade
 from ..repository.submission_mode import (
     retrieve_by_name as retrieve_submission_mode_by_name,
 )
@@ -30,10 +27,6 @@ from ..repository.user import (
 )
 from ..repository.user import (
     retrieve_by_id as retrieve_user_by_id_db,
-)
-from ..schemas.submission import (
-    TAEvaluationGrade,
-    TAEvaluationGradesRequest,
 )
 from ..schemas.user import (
     UpdatedUserInfo,
@@ -133,23 +126,6 @@ def retrieve_evaluative_submissions_for_ta_students(db: Session, ta: User):
         db, ta.id, evaluative_submission_mode.id
     )
     return group_submission_data(submissions)
-
-
-def _calculate_achieved_percentage(grades: list[TAEvaluationGrade]) -> float:
-    max_points = 2 * len(grades)
-    achieved_points = sum(grade.final_grade for grade in grades)
-    return achieved_points / max_points
-
-
-def grade_submission(
-    db: Session, submission_id: int, ta_evaluation_grades: TAEvaluationGradesRequest
-):
-    grades: list[TAEvaluationGrade] = ta_evaluation_grades.evaluation_grades
-    for grade in grades:
-        update_final_feedback_text(db, grade.feedback_id, grade.final_feedback)
-        update_final_fulfillment_value(db, grade.fulfillment_id, grade.final_grade)
-    achieved_points_percentage = _calculate_achieved_percentage(grades)
-    update_grade(db, submission_id, achieved_points_percentage)
 
 
 def retrieve_user_by_id(db: Session, id: int) -> User:

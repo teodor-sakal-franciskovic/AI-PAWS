@@ -4,8 +4,23 @@ from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from ..models.assignment import Assignment
+from ..models.assignment_rule_group import AssignmentRuleGroup
 from ..models.course_group import CourseGroup
 from ..models.submission import Submission
+
+
+def retrieve_rule_group_percentages(
+    db: Session, assignment_id: int
+) -> dict[int, float | None]:
+    rows = (
+        db.query(
+            AssignmentRuleGroup.rule_group_id,
+            AssignmentRuleGroup.percentage_of_points_in_assignment,
+        )
+        .filter(AssignmentRuleGroup.assignment_id == assignment_id)
+        .all()
+    )
+    return {rule_group_id: percentage for rule_group_id, percentage in rows}
 
 
 def retrieve_active_assignments_for_group(

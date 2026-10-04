@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .exceptions import ApiError
 
@@ -19,6 +21,7 @@ from .routers import (
     role,
     rule_group,
     student,
+    submission,
     submission_mode,
     user,
 )
@@ -134,6 +137,34 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
     )
 
 
+@app.exception_handler(StarletteHTTPException)
+async def http_error_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 401:
+        return JSONResponse(
+            status_code=401,
+            content={"code": "UNAUTHORIZED", "message": str(exc.detail)},
+            headers=exc.headers,
+        )
+    if exc.status_code >= 500:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"code": "INTERNAL_SERVER_ERROR", "message": str(exc.detail)},
+            headers=exc.headers,
+        )
+    return await http_exception_handler(request, exc)
+
+
+@app.exception_handler(Exception)
+async def unexpected_error_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "code": "INTERNAL_SERVER_ERROR",
+            "message": "An unexpected error occurred.",
+        },
+    )
+
+
 @app.get("/")
 async def health_check():
     """Health check endpoint for App Runner"""
@@ -165,3 +196,4 @@ app.include_router(rule_group.router)
 app.include_router(language.router)
 app.include_router(instructor.router)
 app.include_router(student.router)
+app.include_router(submission.router)

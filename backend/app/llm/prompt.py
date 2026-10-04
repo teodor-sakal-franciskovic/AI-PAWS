@@ -2,12 +2,10 @@ from fastapi import HTTPException
 from langchain.output_parsers import PydanticOutputParser
 from langchain.prompts import ChatPromptTemplate
 from typing import Any, Dict
-from sqlalchemy.orm import Session
 
 from ..models.historical_profile import HistoricalProfile
 from ..models.prompt_template import PromptTemplate
 from ..models.submission import Submission
-from ..models.rule import Rule
 
 from .schema import (
     LLMFeedbackResponse,
@@ -16,9 +14,6 @@ from .schema import (
     LLMUpdatedKnowledge,
     LLMInitialKnowledgeResponse,
 )
-
-from ..schemas.submission import TAEvaluationGrade
-from ..repository.rule import retrieve_rule_by_feedback_id
 
 _LLM_SCHEMA_MAP = {
     "LLMFeedbackResponse": LLMFeedbackResponse,
@@ -68,14 +63,27 @@ def generate_user_prompt_for_initial_interactive_and_evaluative_mode(
     return user_prompt
 
 
+def generate_evaluative_user_prompt(
+    prompt_template: PromptTemplate,
+    rules: list,
+    submission_text: str,
+    assignment_name: str,
+):
+    user_prompt = prompt_template.user_text
+    for rule in rules:
+        user_prompt += f"ID pravila: {rule.rule_id}\n{rule.rule_name}\n{rule.rule_description}\n\n"
+    user_prompt += f"Evaluiraj SAMO deo teksta koji se odnosi na zadatak {assignment_name}. Ostatak teksta koristi kao dodatni kontekst.\n"
+    user_prompt += "Tekst:\n"
+    user_prompt += submission_text
+    return user_prompt
+
+
 def construct_evaluative_conclusion_object(
-    db: Session,
-    ta_evaluation_grades: list[TAEvaluationGrade],
+    rule_evaluations: list[tuple[str, str | None, int, str | None]],
 ):
     evaluative_conclusion_object = ""
-    for ta_evaluation_grade in ta_evaluation_grades:
-        rule: Rule = retrieve_rule_by_feedback_id(db, ta_evaluation_grade.feedback_id)
-        current_object = f"Naziv pravila: {rule.name}\n\n Opis pravila: {rule.description}\n\n Ocena: {ta_evaluation_grade.final_grade}\n\n Obrazloženje ocene: {ta_evaluation_grade.final_feedback}\n\n"
+    for rule_name, rule_description, grade, feedback in rule_evaluations:
+        current_object = f"Naziv pravila: {rule_name}\n\n Opis pravila: {rule_description}\n\n Ocena: {grade}\n\n Obrazloženje ocene: {feedback}\n\n"
         evaluative_conclusion_object += current_object
 
     return evaluative_conclusion_object

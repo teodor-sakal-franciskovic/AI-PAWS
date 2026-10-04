@@ -21,8 +21,6 @@ from ..llm.prompt import (
 )
 from ..llm.schema import LLMUpdatedKnowledge
 
-from ..schemas.submission import TAEvaluationGradesRequest
-
 
 def insert_initial_student_historical_profile(
     db: Session, user_id: int, initial_knowledge: str
@@ -61,14 +59,17 @@ def retrieve_latest_historical_profile_snapshot(db: Session, user: User):
 
 
 def retrieve_updated_student_knowledge_from_evaluative_mode(
-    db: Session, llm, body: TAEvaluationGradesRequest, submission_id: int
+    db: Session,
+    llm,
+    rule_evaluations: list[tuple[str, str | None, int, str | None]],
+    submission_id: int,
 ) -> LLMUpdatedKnowledge:
     submission: Submission = retrieve_by_id(db, submission_id)
     latest_historical_profile: HistoricalProfile = retrieve_latest(
         db, submission.user_id
     )
     evaluative_conclusion: str = construct_evaluative_conclusion_object(
-        db, body.evaluation_grades
+        rule_evaluations
     )
 
     logger.info(
@@ -81,7 +82,7 @@ def retrieve_updated_student_knowledge_from_evaluative_mode(
     user_prompt = generate_evaluative_summarised_knowledge_user_prompt(
         knowledge_summarisation_prompt_template.user_text,
         evaluative_conclusion,
-        latest_historical_profile.summary,
+        latest_historical_profile.summary if latest_historical_profile else "",
     )
     parser, format_instructions = initialise_format_instructions("LLMUpdatedKnowledge")
     prompt = generate_whole_prompt(format_instructions)

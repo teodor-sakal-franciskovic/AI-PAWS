@@ -44,12 +44,43 @@ class EvaluativeSubmissionSchema(BaseModel):
     rules: list[EvaluativeRuleSchema]
 
 
-class TAEvaluationGrade(BaseModel):
-    feedback_id: int
-    final_grade: int
-    fulfillment_id: int
-    final_feedback: str
+class GradingAssignmentResponse(BaseModel):
+    id: int
+    name: str
+    start_date: datetime
+    end_date: datetime
+    max_points: float | None = None
 
 
-class TAEvaluationGradesRequest(BaseModel):
-    evaluation_grades: list[TAEvaluationGrade]
+class GradingResultResponse(BaseModel):
+    fulfillment_ratio: float
+    achieved_points: float | None = None
+
+
+class GradingSubmissionResponse(BaseModel):
+    submission_id: int
+    submission_status: str
+    grading_status: str
+    submitted_at: datetime
+    assignment: GradingAssignmentResponse
+    result: GradingResultResponse | None = None
+
+
+class GradingSummaryResponse(BaseModel):
+    completed_submissions_count: int
+    ungraded_submissions_count: int
+    achieved_points: float
+    max_points: float
+
+
+class StudentWithSubmissionsResponse(BaseModel):
+    student_id: int
+    student_index: str | None = None
+    name: str
+    surname: str
+    summary: GradingSummaryResponse
+    submissions: list[GradingSubmissionResponse] = []
+
+
+class StudentsWithSubmissionsResponse(BaseModel):
+    students_with_submissions: list[StudentWithSubmissionsResponse] = []

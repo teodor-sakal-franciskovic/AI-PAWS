@@ -1,17 +1,24 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from ..dependencies.auth import get_current_active_user, require_role
 from ..dependencies.db import get_db
+from ..dependencies.llm import initialise_llm
 from ..exceptions import ApiError
 from ..models.role import Role
 from ..models.user import User
 from ..schemas.course import CourseCreate, CourseDetailResponse, CourseUpdate
+from ..schemas.evaluation import (
+    EvaluationResponse,
+    FinalEvaluationRequest,
+    SubmissionEvaluationResponse,
+)
 from ..schemas.group import StudentIdsRequest
 from ..schemas.response import GenericResponse, IdResponse, NameAvailabilityResponse
+from ..schemas.submission import StudentsWithSubmissionsResponse
 from ..services.course import (
     create_course,
     delete_course,
@@ -28,6 +35,9 @@ from ..services.group import (
     get_unassigned_students_for_course,
     set_assigned_students_for_instructor,
 )
+from ..services.evaluation import get_submission_evaluation, save_final_evaluation
+from ..services.submission import get_evaluative_submissions_for_my_students
+from ..tasks.evaluation import update_student_knowledge_after_grading
 
 router = APIRouter(
     prefix="/courses",
@@ -179,6 +189,103 @@ def get_my_students_for_course_endpoint(
         content=GenericResponse(
             message="Successfully retrieved your assigned students for this course.",
             data=[s.model_dump(mode="json") for s in students],
+        ).model_dump(),
+    )
+
+
+@router.get(
+    "/{course_id}/students/mine/submissions/evaluative",
+    response_model=GenericResponse,
+)
+def get_my_students_evaluative_submissions_endpoint(
+    course_id: int,
+    role: Annotated[Role, Depends(require_role("Instructor"))],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Session = Depends(get_db),
+):
+    result = get_evaluative_submissions_for_my_students(db, course_id, current_user.id)
+    return JSONResponse(
+        status_code=200,
+        content=GenericResponse(
+            message="Successfully retrieved evaluative submissions.",
+            data=StudentsWithSubmissionsResponse.model_validate(result).model_dump(
+                mode="json"
+            ),
+        ).model_dump(),
+    )
+
+
+@router.get(
+    "/{course_id}/submissions/{submission_id}/evaluation",
+    response_model=GenericResponse,
+)
+def get_submission_evaluation_endpoint(
+    course_id: int,
+    submission_id: int,
+    role: Annotated[Role, Depends(require_role("Instructor"))],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Session = Depends(get_db),
+):
+    evaluation = get_submission_evaluation(db, course_id, submission_id, current_user.id)
+    return JSONResponse(
+        status_code=200,
+        content=GenericResponse(
+            message="Submission evaluation retrieved successfully.",
+            data=SubmissionEvaluationResponse.model_validate(evaluation).model_dump(
+                mode="json"
+            ),
+        ).model_dump(),
+    )
+
+
+@router.post(
+    "/{course_id}/submissions/{submission_id}/evaluation/final",
+    response_model=GenericResponse,
+    status_code=201,
+)
+def create_final_evaluation_endpoint(
+    course_id: int,
+    submission_id: int,
+    data: FinalEvaluationRequest,
+    background_tasks: BackgroundTasks,
+    role: Annotated[Role, Depends(require_role("Instructor"))],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    llm=Depends(initialise_llm),
+    db: Session = Depends(get_db),
+):
+    evaluation = save_final_evaluation(
+        db, course_id, submission_id, current_user.id, data.rule_evaluations, is_update=False
+    )
+    background_tasks.add_task(update_student_knowledge_after_grading, submission_id, llm)
+    return JSONResponse(
+        status_code=201,
+        content=GenericResponse(
+            message="Evaluation successfully created.",
+            data=EvaluationResponse.model_validate(evaluation).model_dump(mode="json"),
+        ).model_dump(),
+    )
+
+
+@router.put(
+    "/{course_id}/submissions/{submission_id}/evaluation/final",
+    response_model=GenericResponse,
+)
+def update_final_evaluation_endpoint(
+    course_id: int,
+    submission_id: int,
+    data: FinalEvaluationRequest,
+    role: Annotated[Role, Depends(require_role("Instructor"))],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Session = Depends(get_db),
+):
+    evaluation = save_final_evaluation(
+        db, course_id, submission_id, current_user.id, data.rule_evaluations, is_update=True
+    )
+    return JSONResponse(
+        status_code=200,
+        content=GenericResponse(
+            message="Evaluation successfully updated.",
+            data=EvaluationResponse.model_validate(evaluation).model_dump(mode="json"),
         ).model_dump(),
     )
 

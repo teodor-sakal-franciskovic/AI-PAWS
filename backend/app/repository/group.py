@@ -254,6 +254,20 @@ def retrieve_already_assigned_student_ids(
     return [row[0] for row in rows]
 
 
+def is_student_assigned_to_instructor(
+    db: Session, course_id: int, student_id: int, instructor_id: int
+) -> bool:
+    return db.query(
+        db.query(CourseStudentInstructor)
+        .filter(
+            CourseStudentInstructor.course_id == course_id,
+            CourseStudentInstructor.student_id == student_id,
+            CourseStudentInstructor.instructor_id == instructor_id,
+        )
+        .exists()
+    ).scalar()
+
+
 def retrieve_assigned_student_ids_for_instructor(
     db: Session, course_id: int, instructor_id: int
 ) -> list[int]:

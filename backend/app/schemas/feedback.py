@@ -14,14 +14,6 @@ class InteractiveFeedbackResponse(BaseModel):
     is_valid: bool
 
 
-class EvaluativeFeedbackResponse(BaseModel):
-    id: int
-    rule_name: str
-    rule_description: str
-    grade: Any
-    grade_explanation: str
-
-
 class EvaluativeFeedbackSchema(BaseModel):
     feedback_id: int
     feedback_text: Any

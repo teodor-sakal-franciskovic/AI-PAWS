@@ -18,7 +18,7 @@ from ..services.assignment import (
     retrieve_assignments,
 )
 from ..services.chapter import extract_pdf_to_markdown, retrieve_chapter_object_by_id
-from ..services.submission import save_submission
+from ..services.submission import create_evaluative_submission, save_submission
 
 from ..tasks.assignment import retrieve_llm_grading, retrieve_llm_feedback
 
@@ -26,7 +26,7 @@ from ..models.submission import Submission, SubmissionStatus
 from ..models.user import User
 from ..models.role import Role
 
-from ..schemas.response import GenericResponse
+from ..schemas.response import GenericResponse, IdResponse
 from ..schemas.assignment import (
     AssignmentCreate,
     AssignmentResponse,
@@ -145,12 +145,12 @@ def upload_chapter_interactive(
     submission: Submission = save_submission(
         db,
         markdown_text,
-        chapter_name,
         "Interactive mode",
         current_user.id,
         assignment_id,
         file_bytes,
         SubmissionStatus.PENDING,
+        file_name=file.filename,
     )
 
     background_tasks.add_task(
@@ -167,42 +167,32 @@ def upload_chapter_interactive(
 
 
 @router.post(
-    "/{assignment_id}/chapters/{chapter_id}/evaluative",
+    "/{assignment_id}/submissions/evaluative",
     response_model=GenericResponse,
+    status_code=201,
 )
-def upload_chapter_evaluative(
+def submit_evaluative_endpoint(
     assignment_id: int,
-    chapter_id: int,
     background_tasks: BackgroundTasks,
+    role: Annotated[Role, Depends(require_role("Student"))],
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Session = Depends(get_db),
     llm=Depends(initialise_llm),
     file: UploadFile = File(...),
 ):
-    chapter = retrieve_chapter_object_by_id(db, chapter_id)
-    chapter_name: str = chapter.name.lower()
-    file_bytes = anyio.run(file.read)
-    markdown_text = extract_pdf_to_markdown(file_bytes)
-
-    submission: Submission = save_submission(
+    submission_id = create_evaluative_submission(
         db,
-        markdown_text,
-        chapter_name,
-        "Evaluative mode",
-        current_user.id,
         assignment_id,
-        file_bytes,
-        SubmissionStatus.PENDING,
+        current_user.id,
+        file.file.read(),
+        file.filename,
+        file.content_type,
     )
-
-    background_tasks.add_task(
-        retrieve_llm_grading, submission.id, current_user.id, chapter_name, llm
-    )
-
+    background_tasks.add_task(retrieve_llm_grading, submission_id, llm)
     return JSONResponse(
-        status_code=200,
+        status_code=201,
         content=GenericResponse(
-            message=f"Chapter '{chapter_name}' uploaded successfully.",
-            data={"submission_id": submission.id},
+            message="Submission received. It is being graded in the background.",
+            data=IdResponse(id=submission_id).model_dump(),
         ).model_dump(),
     )

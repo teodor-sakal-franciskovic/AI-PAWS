@@ -6,6 +6,7 @@ from ..llm.prompt import (
     generate_whole_prompt,
     generate_user_prompt_for_initial_interactive_and_evaluative_mode,
     generate_additional_interactive_user_prompt,
+    generate_evaluative_user_prompt,
     generate_system_prompt,
     initialise_format_instructions,
 )
@@ -19,6 +20,7 @@ from ..llm.schema import (
     LLMRuleFeedback,
     LLMFeedbackResponse,
     LLMAdditionalFeedbackResponse,
+    LLMEvaluationResponse,
     LLMRuleEvaluation,
 )
 from ..repository.historical_profile import retrieve_latest
@@ -188,8 +190,13 @@ def request_additional_interactive_feedback(
 
 
 def request_evaluation(
-    db: Session, llm, submission: Submission, user: User, chapter_name: str
-):
+    db: Session,
+    llm,
+    submission: Submission,
+    user: User,
+    rules: list,
+    assignment_name: str,
+) -> LLMEvaluationResponse:
     logger.info(f"Retrieving evaluation prompt template for user {user.id}...")
     evaluative_prompt_template: PromptTemplate = retrieve_by_purpose(db, "Evaluative")
     logger.info("Successfully retrieved evaluation prompt template")
@@ -198,22 +205,16 @@ def request_evaluation(
     latest_historical_profile: HistoricalProfile = retrieve_latest(db, user.id)
     logger.info("Successfully retrieved the latest historical profile")
 
-    logger.info(f"Retrieving prompt rules for chapter {chapter_name} user {user.id}")
-    rules = retrieve_rules_for_chapter(db, chapter_name, include_in_prompt=True)
     number_of_rules = len(rules)
-    logger.info(
-        f"Successfully retrieved prompt rules for chapter {chapter_name} -- number of rules {number_of_rules}"
-    )
-
     logger.info(f"Forming system prompt: user {user.id}")
     system_prompt = generate_system_prompt(
         latest_historical_profile, evaluative_prompt_template
     )
     logger.info("Successfully formed system prompt")
 
-    logger.info(f"Forming user prompt: user {user.id}")
-    user_prompt = generate_user_prompt_for_initial_interactive_and_evaluative_mode(
-        evaluative_prompt_template, None, rules, submission, chapter_name
+    logger.info(f"Forming user prompt with {number_of_rules} rules: user {user.id}")
+    user_prompt = generate_evaluative_user_prompt(
+        evaluative_prompt_template, rules, submission.text, assignment_name
     )
     logger.info("Successfully formed user prompt")
 
@@ -257,15 +258,11 @@ def create_feedback_objects_for_interactive_mode(
 
 def create_feedback_objects_for_evaluative_mode(
     db: Session,
+    rules: list,
     llm_rule_evaluations: list[LLMRuleEvaluation],
-    chapter_name: str,
     submission: Submission,
-):
-    logger.info(f"Retrieving prompt rules for chapter {chapter_name}")
-    rules = retrieve_rules_for_chapter(db, chapter_name, include_in_prompt=False)
-    logger.info(f"Successfully retrieved prompt rules for chapter {chapter_name}")
-
-    return generate_evaluative_mode_feedbacks_and_fulfillments(
+) -> None:
+    generate_evaluative_mode_feedbacks_and_fulfillments(
         db, rules, llm_rule_evaluations, submission
     )
 

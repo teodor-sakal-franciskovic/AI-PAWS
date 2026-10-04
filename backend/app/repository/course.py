@@ -114,6 +114,19 @@ def retrieve_by_id(db: Session, course_id: int) -> Course:
     )
 
 
+def instructor_has_access(db: Session, course: Course, user_id: int) -> bool:
+    if course.created_by == user_id:
+        return True
+    return db.query(
+        db.query(CourseInstructor)
+        .filter(
+            CourseInstructor.course_id == course.id,
+            CourseInstructor.instructor_id == user_id,
+        )
+        .exists()
+    ).scalar()
+
+
 def retrieve_all(db: Session) -> list[Course]:
     return db.query(Course).filter(Course.is_active.is_(True)).all()
 

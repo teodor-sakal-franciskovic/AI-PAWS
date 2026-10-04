@@ -10,6 +10,8 @@ from ..services.feedback import (
     create_feedback_objects_for_evaluative_mode,
 )
 from ..llm.schema import LLMFeedbackResponse, LLMEvaluationResponse
+from ..repository.assignment import retrieve_by_id as retrieve_assignment_by_id
+from ..repository.rule import retrieve_rules_for_assignment
 from ..utils.logger import logger
 
 
@@ -57,26 +59,34 @@ def retrieve_llm_feedback(submission_id: int, user_id: int, chapter_name: str, l
         db.close()
 
 
-def retrieve_llm_grading(submission_id: int, user_id: int, chapter_name: str, llm):
+def retrieve_llm_grading(submission_id: int, llm):
     logger.info("[BACKGROUND] Starting a background DB session...")
     db = get_new_session()
+    submission = db.get(Submission, submission_id)
+    if submission is None:
+        logger.error(f"[BACKGROUND] Submission {submission_id} not found")
+        db.close()
+        return
     try:
-        logger.info(f"[BACKGROUND] Retrieving submission {submission_id}")
-        submission = db.get(Submission, submission_id)
-        logger.info(f"[BACKGROUND] Successfully retrieved submission {submission_id}")
-
-        logger.info(f"[BACKGROUND] Retrieving user {user_id}...")
-        user = db.get(User, user_id)
-        logger.info(f"[BACKGROUND] Successfully retrieved user {user_id}")
-
-        logger.info("[BACKGROUND] Requesting LLM evaluation...")
-        llm_evaluation_response: LLMEvaluationResponse = request_evaluation(
-            db, llm, submission, user, chapter_name
+        user = db.get(User, submission.user_id)
+        assignment = retrieve_assignment_by_id(db, submission.assignment_id)
+        rules = retrieve_rules_for_assignment(db, assignment.id)
+        prompt_rules = [rule for rule in rules if rule.include_in_prompt]
+        logger.info(
+            f"[BACKGROUND] Submission {submission_id}: {len(rules)} rules, {len(prompt_rules)} graded by the LLM"
         )
+
+        llm_rule_evaluations = []
+        if prompt_rules:
+            logger.info("[BACKGROUND] Requesting LLM evaluation...")
+            llm_evaluation_response: LLMEvaluationResponse = request_evaluation(
+                db, llm, submission, user, prompt_rules, assignment.name
+            )
+            llm_rule_evaluations = llm_evaluation_response.evaluation
 
         logger.info("[BACKGROUND] Creating feedback objects...")
         create_feedback_objects_for_evaluative_mode(
-            db, llm_evaluation_response.evaluation, chapter_name, submission
+            db, rules, llm_rule_evaluations, submission
         )
 
         logger.info("[BACKGROUND] Updating submission status to COMPLETED...")

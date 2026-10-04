@@ -21,6 +21,7 @@ class LLMAdditionalFeedbackResponse(BaseModel):
 
 
 class LLMRuleEvaluation(BaseModel):
+    rule_id: int
     rule_name: str
     grade: int
     grade_explanation: str

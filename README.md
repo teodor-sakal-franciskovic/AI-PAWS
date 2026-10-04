@@ -36,7 +36,7 @@ AI-Powered Academic Writing Support
 | GET    | `/active`       | Retrieval of currently active assignments for submission      | Student screen when taking a look at active assignments                    |
 | GET   | `/previous`            | Retrieval of previously submitted assignments            | Student screen when taking a look at previously submitted assignments                          |
 | POST   | `/{assignment_id}/chapters/{chapter_id}/interactive`            | Upload of the currently-written research paper and retrieval of the received feedback            | Student screen when uploading a research paper as an assignment, after the upload, view of all of the received feedback                          |
-| POST   | `/{assignment_id}/chapters/{chapter_id}/evaluative`            | Upload of the currently-written research paper            | Student screen when uploading a research paper as an assignment; No feedback received immediately after the upload, TA has to confirm/edit it first.
+| POST   | `/{assignment_id}/submissions/evaluative`            | Student upload of a paper (PDF) for an evaluative assignment. The AI grades it in the background against the assignment's rule groups            | Student screen when submitting a paper for an evaluative assignment; the student gets no feedback right away — the instructor reviews/finalises the AI's grades first (`/courses/{course_id}/submissions/{submission_id}/evaluation`).
 | GET   | `/{assignment_id}/submissions/files`            | Retrieval of pdfs submitted by students for a specific assignment            | TA will have an option to download the zip file with all of the submitted files when the evaluative assignment has finished. The zip file will contain a folder per TA, with each containing TAs' students' pdf files of research papers.      
 ### Body Examples
 #### `POST /`
@@ -55,9 +55,9 @@ AI-Powered Academic Writing Support
 ```
 A pdf file upload is expected
 ```
-#### `POST /{assignment_id}/chapters/{chapter_id}/evaluative`
+#### `POST /{assignment_id}/submissions/evaluative`
 ```
-A pdf file upload is expected
+multipart/form-data with a single "file" field containing the PDF
 ```
 ### Return Value Examples
 #### `POST /`
@@ -177,12 +177,21 @@ A pdf file upload is expected
 }
 ```
 
-#### `POST /{assignment_id}/chapters/{chapter_id}/evaluative`
+#### `POST /{assignment_id}/submissions/evaluative`
 ```json
 {
-  "submission_id": 2
+  "id": 2
 }
 ```
+- `201 Created`. The submission is stored as `PENDING` and the response returns right away; the AI grades it in the background. It then becomes `COMPLETED` (ready for the instructor to grade), or `FAILED` if the AI call or processing failed.
+- Only students can submit, and only to evaluative assignments of courses they're enrolled in (i.e. they're in a group on that course). Submitting again is allowed; the grading page uses the latest completed submission.
+- The rules graded are those of the assignment's rule groups. Rules with `include_in_prompt: false` aren't sent to the AI — their row is still created, with no AI grade, for the instructor to grade.
+- Errors use the V2 error format (see **Endpoints V2** below):
+  - `404 Not Found`, code `ASSIGNMENT_NOT_FOUND`, if the assignment doesn't exist, isn't evaluative, or its course was deleted.
+  - `403 Forbidden`, code `ASSIGNMENT_ACCESS_DENIED`, if the student isn't enrolled in the assignment's course.
+  - `409 Conflict`, code `ASSIGNMENT_HAS_NO_RULES`, if the assignment has no rule groups/rules to grade against.
+  - `400 Bad Request`, code `VALIDATION_ERROR`, if the file isn't a PDF or can't be read.
+  - `401 Unauthorized`, code `UNAUTHORIZED`, if not logged in or not a student.
 
 #### `GET /{assignment_id}/chapters/files`
 ```
@@ -378,7 +387,6 @@ data part is None, only the message gets returned.
 | PUT    | `/password`            | Password update            | Student screen if password change is wanted. Maybe same for the TA.                            |
 | POST    | `/batch`       | Batch creation of students      | TA screen with the csv file upload button.                    |
 | GET    | `/my-students/submissions/evaluative`            | TA Retrieval of evaluative submissions of his assigned students            | For each TA's student, all of the evaluative-assignment submissions are present.                        |
-| PUT    | `/submission/{submission_id}/grade`       | TA grading of a submission      | After the submission has been sent to the app's evaluative mode (performed by LLM), TA has to go over the given grades and feedback and finalise them (by either editing or leaving them as they are). Afterwards, if needed, TA can edit the feedback/grades again.                    |
 | POST   | `/initial-knowledge`       | TA submission of pretest results      | Students will have a pretest, which will be graded by the TAs. Afterwards, the results (which are going to be written in a csv file) should be uploaded via this endpoint by a TA, so that the initial student knowledge is present in the database.                    |
 
 ### Body Examples
@@ -411,23 +419,6 @@ A csv file is expected, with the following header columns:
 - Indeks,
 - Asistent.
 
-```
-
-#### ```PUT /submission/{submission_id}/grade```
-```json
-{
-  "evaluation_grades": [
-    {
-      "feedback_id": 102,
-      "final_grade": 2,
-      "fulfillment_id": 53,
-      "final_feedback": "All good"
-    },
-    {
-      ...
-    }
-  ]
-}
 ```
 
 #### `POST /batch`
@@ -540,11 +531,6 @@ data part is None, only the message gets returned.
 }
 ```
 
-#### ```PUT /submission/{submission_id}/grade```
-```
-data part is None, only the message gets returned.
-```
-
 #### `POST /initial-knowledge`
 ```
 data part is None, only the message gets returned.
@@ -561,7 +547,8 @@ data part is None, only the message gets returned.
   "message": "Course not found."
 }
 ```
-  `400` is always `VALIDATION_ERROR` (invalid/missing request data, or a request that references a deleted/nonexistent related record), `404` is a `*_NOT_FOUND` code, `409` is a `*_ALREADY_EXISTS` code (duplicate name).
+  `400` is always `VALIDATION_ERROR` (invalid/missing request data, or a request that references a deleted/nonexistent related record), `403` is a `*_ACCESS_DENIED` code (logged in, but no access to that resource), `404` is a `*_NOT_FOUND` code, `409` is a `*_ALREADY_EXISTS` code (duplicate name) or a state conflict described in the endpoint's section.
+- Across **all** endpoints (V1 included), a missing/invalid token, or a logged-in user without the required role, returns `401` with `{"code": "UNAUTHORIZED", "message": ...}`, and an unexpected server error returns `500` with `{"code": "INTERNAL_SERVER_ERROR", "message": ...}`.
 - `PUT` and `DELETE` endpoints below return `204 No Content` (no body) on success.
 - **Deletes are soft deletes** (an `is_active` flag under the hood). A deleted course/rule group/language: disappears from its `GET` list and `GET /{id}` (404s), frees up its name for reuse, and can no longer be newly *referenced* (linking a deleted rule group into a course, or a deleted language as a course's feedback/submission language, is rejected with `400 VALIDATION_ERROR`). It is **not** retroactively removed from courses that already reference it — those keep displaying it as before.
 
@@ -581,6 +568,10 @@ data part is None, only the message gets returned.
 | GET    | `/{course_id}/students/unassigned`            | Retrieval of every student across **all** of this course's groups that has no instructor yet — a course can have multiple groups, and an instructor doesn't care which group a student is in, just whether they're picked | Instructor's "pick your students" screen, course-wide            |
 | GET    | `/{course_id}/students/available-for-group?excluded_ids=57,61`            | Retrieval of every registered, active student **not already in a group on this course**, minus any `excluded_ids` sent (comma-separated). Returns the full matching list, unpaginated | The "add students" picker when creating or editing a student group |
 | PUT    | `/{course_id}/students/mine`            | Sets the logged-in instructor's complete list of students for this course (from any of the course's groups). Students added to the list are assigned, students removed from it are unassigned           | Confirming the instructor's course-wide selection            |
+| GET    | `/{course_id}/students/mine/submissions/evaluative`            | Retrieval of the logged-in instructor's assigned students on this course, each with their completed evaluative submissions for this course and a points summary. Students with no completed evaluative submissions are included too           | Grading page, after the instructor picks a course (from `GET /instructor`)            |
+| GET    | `/{course_id}/submissions/{submission_id}/evaluation`            | Everything needed to view and grade one evaluative submission: course, student, assignment, the submitted file, the AI's suggested grades and the instructor's final grades per rule (grouped by rule group), points, and what the instructor is allowed to do           | Submission evaluation page (create/edit/view)            |
+| POST   | `/{course_id}/submissions/{submission_id}/evaluation/final`            | First grading of a submission: the instructor's final grade and feedback for every rule           | "Save" on the evaluation page when `grading_status` is `NOT_GRADED` and `permissions.can_grade` is `true`            |
+| PUT    | `/{course_id}/submissions/{submission_id}/evaluation/final`            | Replaces an existing final evaluation. Every rule must be sent again, changed or not           | "Save" on the evaluation page when `grading_status` is `GRADED` and `permissions.can_edit_grade` is `true`            |
 
 ### Body Examples
 #### `POST /`
@@ -609,6 +600,25 @@ data part is None, only the message gets returned.
 ```
 #### `PUT /{course_id}`
 - Same shape as `POST /`, except assignments may carry an `id` (update) or omit it (create); any existing assignment not present in the payload is deleted.
+#### `POST /{course_id}/submissions/{submission_id}/evaluation/final` and `PUT /{course_id}/submissions/{submission_id}/evaluation/final`
+```json
+{
+  "rule_evaluations": [
+    {
+      "rule_id": 201,
+      "final_feedback_text": "Siri problem je dobro predstavljen, ali kontekst treba dodatno razraditi.",
+      "final_fulfillment_value": 1
+    },
+    {
+      "rule_id": 202,
+      "final_feedback_text": "Osnovni koncepti su jasno definisani i pravilno upotrebljeni.",
+      "final_fulfillment_value": 2
+    }
+  ]
+}
+```
+- `rule_evaluations` must contain **every** rule of the submission (the rules listed in `GET .../evaluation`) exactly once — on `PUT` too, including unchanged ones.
+- `final_fulfillment_value` is `0`, `1` or `2` (see `fulfillment_scale` in `GET .../evaluation`).
 
 ### Return Value Examples
 #### `POST /`
@@ -734,6 +744,206 @@ data part is None, only the message gets returned.
   }
 ]
 ```
+#### `GET /{course_id}/students/mine/submissions/evaluative`
+```json
+{
+  "students_with_submissions": [
+    {
+      "student_id": 101,
+      "student_index": "SV_13_2022",
+      "name": "Mihajlo",
+      "surname": "Orlovic",
+      "summary": {
+        "completed_submissions_count": 2,
+        "ungraded_submissions_count": 1,
+        "achieved_points": 19.34,
+        "max_points": 45
+      },
+      "submissions": [
+        {
+          "submission_id": 501,
+          "submission_status": "COMPLETED",
+          "grading_status": "GRADED",
+          "submitted_at": "2026-03-30T12:27:00",
+          "assignment": {
+            "id": 201,
+            "name": "Poglavlje Problem 2026 (Evaluativni)",
+            "start_date": "2026-03-23T00:00:00",
+            "end_date": "2026-04-06T23:59:00",
+            "max_points": 22.5
+          },
+          "result": {
+            "fulfillment_ratio": 0.8596,
+            "achieved_points": 19.34
+          }
+        },
+        {
+          "submission_id": 502,
+          "submission_status": "COMPLETED",
+          "grading_status": "NOT_GRADED",
+          "submitted_at": "2026-04-18T09:40:00",
+          "assignment": {
+            "id": 202,
+            "name": "Poglavlje Resenje 2026 (Evaluativni)",
+            "start_date": "2026-04-08T00:00:00",
+            "end_date": "2026-05-04T23:59:00",
+            "max_points": 22.5
+          },
+          "result": null
+        }
+      ]
+    },
+    {
+      "student_id": 102,
+      "student_index": "SV_21_2022",
+      "name": "Katalin",
+      "surname": "Nagy",
+      "summary": {
+        "completed_submissions_count": 0,
+        "ungraded_submissions_count": 0,
+        "achieved_points": 0,
+        "max_points": 0
+      },
+      "submissions": []
+    }
+  ]
+}
+```
+- Only students assigned to the logged-in instructor on this course are returned (see `PUT /{course_id}/students/mine`), ordered by surname and name.
+- Only `COMPLETED` submissions are returned (the only ones an instructor can grade), for assignments of this course whose submission mode is evaluative. Submissions are ordered by assignment start date.
+- If a student has more than one completed submission for the same assignment, only the latest one is returned and counted in `summary`. Older ones (and newer `PENDING`/`FAILED` uploads) are left out.
+- `grading_status` is `GRADED` once the instructor has graded the submission (`POST /{course_id}/submissions/{submission_id}/evaluation/final`), otherwise `NOT_GRADED`. `result` is `null` until it's graded.
+- `assignment.max_points` = the course's `max_amount_of_points` × the assignment's `percentage_of_points_in_course` / 100. It's `null` if either value isn't set.
+- `result.fulfillment_ratio` is the submission's grade (0–1, weighted by rule group — see `GET /{course_id}/submissions/{submission_id}/evaluation` below), and `result.achieved_points` = `fulfillment_ratio` × `max_points`, rounded to 2 decimals.
+- `summary.max_points` adds up `max_points` over all of the student's completed submissions, graded or not; `summary.achieved_points` adds up `achieved_points` over the graded ones only.
+- Access: the instructor must have created the course or been added to it as an instructor.
+- `404 Not Found`, code `COURSE_NOT_FOUND`, if the course doesn't exist or was deleted.
+- `403 Forbidden`, code `COURSE_ACCESS_DENIED`, if the logged-in instructor has no access to the course.
+- `401 Unauthorized` if the request isn't authenticated, or the logged-in user isn't an instructor.
+- A valid course with no assigned students returns `200` with `"students_with_submissions": []`.
+#### `GET /{course_id}/submissions/{submission_id}/evaluation`
+```json
+{
+  "course": { "id": 1, "name": "Probni naziv kursa" },
+  "student": {
+    "student_id": 101,
+    "student_index": "SV_13_2022",
+    "name": "Mihajlo",
+    "surname": "Orlovic"
+  },
+  "assignment": {
+    "id": 201,
+    "name": "Poglavlje Problem 2026 (Evaluativni)",
+    "start_date": "2026-03-23T00:00:00",
+    "end_date": "2026-04-06T23:59:00",
+    "max_points": 22.5
+  },
+  "submission": {
+    "id": 501,
+    "status": "COMPLETED",
+    "submitted_at": "2026-03-30T12:27:00",
+    "file": {
+      "name": "poglavlje-problem.pdf",
+      "mime_type": "application/pdf",
+      "download_url": "/submissions/501/file"
+    }
+  },
+  "evaluation": {
+    "grading_status": "GRADED",
+    "ai_suggested_result": { "fulfillment_ratio": 0.75, "achieved_points": 16.88 },
+    "final_result": { "fulfillment_ratio": 0.85, "achieved_points": 19.13 },
+    "graded_at": "2026-04-19T10:35:00",
+    "graded_by": { "instructor_id": 7, "name": "Teodor", "surname": "Sakal Franciskovic" }
+  },
+  "fulfillment_scale": [
+    { "value": 0, "code": "NOT_FULFILLED" },
+    { "value": 1, "code": "PARTIALLY_FULFILLED" },
+    { "value": 2, "code": "FULFILLED" }
+  ],
+  "rule_groups": [
+    {
+      "id": 31,
+      "name": "Sadrzaj i relevantnost",
+      "position": 1,
+      "percentage_of_points_in_assignment": 60,
+      "summary": {
+        "rules_count": 2,
+        "finalized_rules_count": 2,
+        "max_points": 13.5,
+        "ai_suggested_achieved_points": 10.13,
+        "final_achieved_points": 10.13
+      },
+      "rules": [
+        {
+          "id": 201,
+          "position": 1,
+          "name": "Siri problem",
+          "description": "Siri problem koji rad obradjuje treba da bude jasno predstavljen.",
+          "evaluation": {
+            "ai_suggestion": {
+              "feedback_text": "Siri problem je delimicno predstavljen.",
+              "fulfillment_value": 1
+            },
+            "final": {
+              "feedback_text": "Siri problem je dobro predstavljen, ali kontekst treba razraditi.",
+              "fulfillment_value": 1
+            }
+          }
+        },
+        {
+          ...
+        }
+      ]
+    },
+    {
+      ...
+    }
+  ],
+  "permissions": {
+    "can_view": true,
+    "can_grade": false,
+    "can_edit_grade": true
+  }
+}
+```
+- **Access:** only the instructor the student is assigned to on this course (see `PUT /{course_id}/students/mine`), who must also have created or been added to the course, can view or grade the evaluation. Everyone else gets `403`.
+- **Which rules:** the rules the AI evaluated for this submission, even if the rule group was edited later. Rule groups are sorted alphabetically by name, and rules alphabetically by name inside each rule group, using the language-neutral Unicode order: upper/lower case and accents are ignored (so `Č` sorts with `C` and `Á` with `A`), and other scripts (Greek, Cyrillic, …) come after Latin. `position` is that order, starting at 1 (for rules, restarting in each rule group). A rule's `description` is its instructor-written description.
+- **Grades per rule:** `ai_suggestion` is the AI's grade and explanation. `final` is the instructor's, and is `null` until the submission is graded.
+- **Points:** `assignment.max_points` = the course's `max_amount_of_points` × the assignment's `percentage_of_points_in_course` / 100 (`null` if either isn't set). Each rule group's `summary.max_points` is its share of that, based on `percentage_of_points_in_assignment`.
+- **How the score is computed:** each rule group's score is the sum of its rules' grades divided by 2 × its number of graded rules, and the groups are combined using their `percentage_of_points_in_assignment`. Example: group A (60%) fully met and group B (40%) half met gives 0.6 × 1 + 0.4 × 0.5 = 0.8. If any rule group has no percentage set, all rule groups count equally; percentages that don't add up to 100 are scaled so a fully met submission always gets 1. `ai_suggested_result` applies this to the AI's grades and `final_result` to the instructor's (`null` until graded). `achieved_points` = `fulfillment_ratio` × `max_points`, rounded to 2 decimals.
+- **`graded_at` / `graded_by`:** the last time the final evaluation was saved, and by whom (`null` for submissions graded before this was tracked).
+- **`submission.file`:** `null` if no file was stored. `name` is the original upload's file name; older submissions get a generated one (`{student_index}-{assignment-name}.pdf`). Download it with `GET /submissions/{submission_id}/file` (needs the login token).
+- **`permissions`:** `can_grade` is `true` for a `COMPLETED`, not yet graded submission (→ `POST .../evaluation/final`); `can_edit_grade` is `true` for a graded one (→ `PUT .../evaluation/final`). Submissions that aren't `COMPLETED` can be viewed but not graded.
+- `404 Not Found`, code `COURSE_NOT_FOUND`, if the course doesn't exist or was deleted.
+- `404 Not Found`, code `SUBMISSION_NOT_FOUND`, if the submission doesn't exist, isn't in this course, or isn't on an evaluative assignment.
+- `403 Forbidden`, code `SUBMISSION_EVALUATION_ACCESS_DENIED`, see **Access** above.
+#### `POST /{course_id}/submissions/{submission_id}/evaluation/final` and `PUT /{course_id}/submissions/{submission_id}/evaluation/final`
+```json
+{
+  "grading_status": "GRADED",
+  "ai_suggested_result": { "fulfillment_ratio": 0.75, "achieved_points": 16.88 },
+  "final_result": { "fulfillment_ratio": 0.85, "achieved_points": 19.13 },
+  "graded_at": "2026-04-19T10:35:00",
+  "graded_by": { "instructor_id": 7, "name": "Teodor", "surname": "Sakal Franciskovic" }
+}
+```
+- Returns the updated `evaluation` object (same shape as in `GET .../evaluation`). `POST` returns `201 Created`, `PUT` returns `200 OK`.
+- `PUT` fully replaces the existing final evaluation, and both set `graded_by`/`graded_at` to the current instructor and time.
+- After a `POST`, the student's knowledge profile is updated in the background through the AI, using the final grades (this used to happen inside the old `PUT /users/submission/{submission_id}/grade`). It doesn't delay the response. `PUT` doesn't trigger it again.
+- Saving is all-or-nothing: if anything fails validation, nothing is saved.
+- `400 Bad Request`, code `VALIDATION_ERROR`, if the body is invalid (e.g. a value outside 0–2), or `rule_evaluations` doesn't contain every rule of the submission exactly once. In the second case, `data` lists the problem rule ids:
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "rule_evaluations must contain every rule of this submission exactly once.",
+  "data": { "duplicate_rule_ids": [], "unknown_rule_ids": [999], "missing_rule_ids": [204] }
+}
+```
+- `404 Not Found`, code `COURSE_NOT_FOUND` / `SUBMISSION_NOT_FOUND`, same as `GET .../evaluation`.
+- `403 Forbidden`, code `SUBMISSION_EVALUATION_ACCESS_DENIED`, same as `GET .../evaluation`.
+- `409 Conflict`, code `SUBMISSION_NOT_READY_FOR_GRADING`, if the submission isn't `COMPLETED`.
+- `POST` only: `409 Conflict`, code `EVALUATION_ALREADY_GRADED`, if the submission is already graded (use `PUT`).
+- `PUT` only: `404 Not Found`, code `FINAL_EVALUATION_NOT_FOUND`, if the submission hasn't been graded yet (use `POST`).
 #### `GET /{course_id}/students/unassigned`
 - Same shape as `GET /{course_id}/students/mine` above, but the unassigned pool — aggregated across every group linked to this course.
 - `404 Not Found`, code `COURSE_NOT_FOUND`.
@@ -1142,3 +1352,20 @@ data part is None, only the message gets returned.
 ```
 - All filters are optional and match as case-insensitive substrings.
 - No pagination or server-side limit: the full matching list is returned in one response (expected to be at most a few thousand rows), for the FE table (e.g. Tabulator) to filter/sort/paginate client-side — same convention as `GET /courses/{course_id}/students/available-for-group` above.
+
+## /submissions
+### Brief Summary
+| Method | Path                      | Description                                   | FE Usage                                 |
+|--------|---------------------------|-----------------------------------------------|----------------------------------------------|
+| GET    | `/{submission_id}/file`            | Download of the PDF the student submitted           | The file link on the submission evaluation page (`submission.file.download_url` in `GET /courses/{course_id}/submissions/{submission_id}/evaluation`)            |
+
+### Return Value Examples
+#### `GET /{submission_id}/file`
+```
+The PDF file itself (Content-Type: application/pdf), with Content-Disposition: attachment and the file name. Not wrapped in the { "message", "data" } object.
+```
+- Needs the login token like every other endpoint, so the FE has to download it with an authenticated request (e.g. `fetch` → blob) instead of a plain link. The file name to show is `submission.file.name` from the evaluation endpoint.
+- Same access rule as the evaluation page: only the instructor the student is assigned to on that course.
+- `404 Not Found`, code `SUBMISSION_NOT_FOUND`, if the submission doesn't exist or its course was deleted.
+- `404 Not Found`, code `SUBMISSION_FILE_NOT_FOUND`, if the submission has no stored file.
+- `403 Forbidden`, code `SUBMISSION_ACCESS_DENIED`, if the student isn't assigned to the logged-in instructor on that course.
