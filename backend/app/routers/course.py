@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 
 from ..dependencies.auth import get_current_active_user, require_role
@@ -10,6 +10,7 @@ from ..dependencies.llm import initialise_llm
 from ..exceptions import ApiError
 from ..models.role import Role
 from ..models.user import User
+from ..schemas.assignment import SubmissionOverviewResponse
 from ..schemas.course import CourseCreate, CourseDetailResponse, CourseUpdate
 from ..schemas.evaluation import (
     EvaluationResponse,
@@ -19,6 +20,7 @@ from ..schemas.evaluation import (
 from ..schemas.group import StudentIdsRequest
 from ..schemas.response import GenericResponse, IdResponse, NameAvailabilityResponse
 from ..schemas.submission import StudentsWithSubmissionsResponse
+from ..services.assignment import build_submissions_zip, get_submission_overview
 from ..services.course import (
     create_course,
     delete_course,
@@ -287,6 +289,64 @@ def update_final_evaluation_endpoint(
             message="Evaluation successfully updated.",
             data=EvaluationResponse.model_validate(evaluation).model_dump(mode="json"),
         ).model_dump(),
+    )
+
+
+def _positive_id(value: str, code: str, name: str) -> int:
+    if not (value.isascii() and value.isdigit()) or int(value) == 0:
+        raise ApiError(400, code, f"{name} must be a positive integer.")
+    return int(value)
+
+
+def _iter_and_close(file, chunk_size: int = 1024 * 1024):
+    try:
+        while chunk := file.read(chunk_size):
+            yield chunk
+    finally:
+        file.close()
+
+
+@router.get(
+    "/{course_id}/assignments/submission-overview", response_model=GenericResponse
+)
+def get_submission_overview_endpoint(
+    course_id: str,
+    role: Annotated[Role, Depends(require_role("Instructor"))],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Session = Depends(get_db),
+):
+    overview = get_submission_overview(
+        db, _positive_id(course_id, "INVALID_COURSE_ID", "course_id"), current_user.id
+    )
+    return JSONResponse(
+        status_code=200,
+        content=GenericResponse(
+            message="Successfully retrieved the submission overview.",
+            data=SubmissionOverviewResponse.model_validate(overview).model_dump(
+                mode="json"
+            ),
+        ).model_dump(),
+    )
+
+
+@router.get("/{course_id}/assignments/{assignment_id}/submissions/zip")
+def download_submissions_zip_endpoint(
+    course_id: str,
+    assignment_id: str,
+    role: Annotated[Role, Depends(require_role("Instructor"))],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Session = Depends(get_db),
+):
+    archive, file_name = build_submissions_zip(
+        db,
+        _positive_id(course_id, "INVALID_COURSE_ID", "course_id"),
+        _positive_id(assignment_id, "INVALID_ASSIGNMENT_ID", "assignment_id"),
+        current_user.id,
+    )
+    return StreamingResponse(
+        _iter_and_close(archive),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{file_name}"'},
     )
 
 

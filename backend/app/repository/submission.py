@@ -1,8 +1,7 @@
-from sqlalchemy import and_, case
-from sqlalchemy.orm import Session, aliased, defer
+from sqlalchemy import case
+from sqlalchemy.orm import Session, defer
 
 from ..models.assignment import Assignment
-from ..models.course_student_instructor import CourseStudentInstructor
 from ..models.feedback import Feedback
 from ..models.fulfillment import Fulfillment
 from ..models.rule import Rule
@@ -142,27 +141,6 @@ def update_status(db: Session, id: int, status: SubmissionStatus):
     submission.status = status
     db.commit()
     return submission
-
-
-def retrieve_by_assignment_id(db: Session, assignment_id: int):
-    Student = aliased(User)
-    TA = aliased(User)
-
-    return (
-        db.query(Submission, Student, TA)
-        .join(Student, Submission.user_id == Student.id)
-        .join(Assignment, Assignment.id == Submission.assignment_id)
-        .outerjoin(
-            CourseStudentInstructor,
-            and_(
-                CourseStudentInstructor.student_id == Student.id,
-                CourseStudentInstructor.course_id == Assignment.course_id,
-            ),
-        )
-        .outerjoin(TA, CourseStudentInstructor.instructor_id == TA.id)
-        .filter(Submission.assignment_id == assignment_id)
-        .all()
-    )
 
 
 def retrieve_rule_feedbacks_for_submission(

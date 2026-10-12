@@ -3,6 +3,7 @@ from fastapi.exception_handlers import http_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import OperationalError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .exceptions import ApiError
@@ -152,6 +153,17 @@ async def http_error_handler(request: Request, exc: StarletteHTTPException):
             headers=exc.headers,
         )
     return await http_exception_handler(request, exc)
+
+
+@app.exception_handler(OperationalError)
+async def database_unavailable_handler(request: Request, exc: OperationalError):
+    return JSONResponse(
+        status_code=503,
+        content={
+            "code": "SERVICE_UNAVAILABLE",
+            "message": "The service is temporarily unavailable. Please try again later.",
+        },
+    )
 
 
 @app.exception_handler(Exception)

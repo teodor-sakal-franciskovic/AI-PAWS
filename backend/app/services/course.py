@@ -1,9 +1,11 @@
 from sqlalchemy.orm import Session
 
 from ..exceptions import ApiError
+from ..models.course import Course
 from ..repository.course import (
     check_name_exists,
     create_and_populate_course,
+    instructor_has_access,
     retrieve_all,
     retrieve_by_id,
     retrieve_course_detail,
@@ -16,6 +18,17 @@ from ..repository.course import (
 )
 from ..repository.group import retrieve_group_ids_for_student
 from ..schemas.course import CourseCreate, CourseUpdate
+
+
+def require_course_access(db: Session, course_id: int, instructor_id: int) -> Course:
+    course = retrieve_by_id(db, course_id)
+    if not course:
+        raise ApiError(404, "COURSE_NOT_FOUND", "Course not found.")
+    if not instructor_has_access(db, course, instructor_id):
+        raise ApiError(
+            403, "COURSE_ACCESS_DENIED", "You do not have access to this course."
+        )
+    return course
 
 
 def create_course(db: Session, data: CourseCreate, user_id: int) -> int:

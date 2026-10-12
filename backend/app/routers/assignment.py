@@ -14,7 +14,6 @@ from ..services.assignment import (
     create_assignment,
     retrieve_active_assignments_for_student,
     retrieve_previous_assignments_for_student,
-    retrieve_submission_files_for_assignment,
     retrieve_assignments,
 )
 from ..services.chapter import extract_pdf_to_markdown, retrieve_chapter_object_by_id
@@ -114,15 +113,6 @@ def retrieve_all_assignments_endpoint(
             ).model_dump_json()
         ),
     )
-
-
-@router.get("/{assignment_id}/submissions/files")
-def retrieve_submission_files_endpoint(
-    assignment_id: int,
-    role: Annotated[Role, Depends(require_role("Instructor"))],
-    db: Session = Depends(get_db),
-):
-    return retrieve_submission_files_for_assignment(db, assignment_id)
 
 
 @router.post(

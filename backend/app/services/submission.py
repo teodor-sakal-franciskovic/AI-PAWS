@@ -5,7 +5,6 @@ from ..exceptions import ApiError
 from ..models.submission import Submission, SubmissionStatus
 from ..models.submission_mode import SubmissionMode
 from ..repository.assignment import retrieve_by_id as retrieve_assignment_by_id
-from ..repository.course import instructor_has_access
 from ..repository.course import retrieve_by_id as retrieve_course_by_id
 from ..repository.group import (
     retrieve_assigned_students_for_instructor,
@@ -13,6 +12,7 @@ from ..repository.group import (
 )
 from ..repository.rule import retrieve_rules_for_assignment
 from .chapter import extract_pdf_to_markdown
+from .course import require_course_access
 from ..repository.submission_mode import (
     retrieve_by_name as retrieve_submission_mode_by_name,
 )
@@ -178,13 +178,7 @@ def _grading_summary(submissions: list[dict]) -> dict:
 def get_evaluative_submissions_for_my_students(
     db: Session, course_id: int, instructor_id: int
 ) -> dict:
-    course = retrieve_course_by_id(db, course_id)
-    if not course:
-        raise ApiError(404, "COURSE_NOT_FOUND", "Course not found.")
-    if not instructor_has_access(db, course, instructor_id):
-        raise ApiError(
-            403, "COURSE_ACCESS_DENIED", "You do not have access to this course."
-        )
+    course = require_course_access(db, course_id, instructor_id)
 
     students = retrieve_assigned_students_for_instructor(db, course_id, instructor_id)
     evaluative_mode = retrieve_submission_mode_by_name(db, "Evaluative mode")

@@ -37,7 +37,6 @@ AI-Powered Academic Writing Support
 | GET   | `/previous`            | Retrieval of previously submitted assignments            | Student screen when taking a look at previously submitted assignments                          |
 | POST   | `/{assignment_id}/chapters/{chapter_id}/interactive`            | Upload of the currently-written research paper and retrieval of the received feedback            | Student screen when uploading a research paper as an assignment, after the upload, view of all of the received feedback                          |
 | POST   | `/{assignment_id}/submissions/evaluative`            | Student upload of a paper (PDF) for an evaluative assignment. The AI grades it in the background against the assignment's rule groups            | Student screen when submitting a paper for an evaluative assignment; the student gets no feedback right away — the instructor reviews/finalises the AI's grades first (`/courses/{course_id}/submissions/{submission_id}/evaluation`).
-| GET   | `/{assignment_id}/submissions/files`            | Retrieval of pdfs submitted by students for a specific assignment            | TA will have an option to download the zip file with all of the submitted files when the evaluative assignment has finished. The zip file will contain a folder per TA, with each containing TAs' students' pdf files of research papers.      
 ### Body Examples
 #### `POST /`
 
@@ -192,11 +191,6 @@ multipart/form-data with a single "file" field containing the PDF
   - `409 Conflict`, code `ASSIGNMENT_HAS_NO_RULES`, if the assignment has no rule groups/rules to grade against.
   - `400 Bad Request`, code `VALIDATION_ERROR`, if the file isn't a PDF or can't be read.
   - `401 Unauthorized`, code `UNAUTHORIZED`, if not logged in or not a student.
-
-#### `GET /{assignment_id}/chapters/files`
-```
-A zip file with students' submitted pdf files.
-```
 
 ## /auth
 ### Brief Summary
@@ -548,7 +542,7 @@ data part is None, only the message gets returned.
 }
 ```
   `400` is always `VALIDATION_ERROR` (invalid/missing request data, or a request that references a deleted/nonexistent related record), `403` is a `*_ACCESS_DENIED` code (logged in, but no access to that resource), `404` is a `*_NOT_FOUND` code, `409` is a `*_ALREADY_EXISTS` code (duplicate name) or a state conflict described in the endpoint's section.
-- Across **all** endpoints (V1 included), a missing/invalid token, or a logged-in user without the required role, returns `401` with `{"code": "UNAUTHORIZED", "message": ...}`, and an unexpected server error returns `500` with `{"code": "INTERNAL_SERVER_ERROR", "message": ...}`.
+- Across **all** endpoints (V1 included), a missing/invalid token, or a logged-in user without the required role, returns `401` with `{"code": "UNAUTHORIZED", "message": ...}`, an unexpected server error returns `500` with `{"code": "INTERNAL_SERVER_ERROR", "message": ...}`, and if the database is unreachable the response is `503` with `{"code": "SERVICE_UNAVAILABLE", "message": ...}`.
 - `PUT` and `DELETE` endpoints below return `204 No Content` (no body) on success.
 - **Deletes are soft deletes** (an `is_active` flag under the hood). A deleted course/rule group/language: disappears from its `GET` list and `GET /{id}` (404s), frees up its name for reuse, and can no longer be newly *referenced* (linking a deleted rule group into a course, or a deleted language as a course's feedback/submission language, is rejected with `400 VALIDATION_ERROR`). It is **not** retroactively removed from courses that already reference it — those keep displaying it as before.
 
@@ -569,6 +563,8 @@ data part is None, only the message gets returned.
 | GET    | `/{course_id}/students/available-for-group?excluded_ids=57,61`            | Retrieval of every registered, active student **not already in a group on this course**, minus any `excluded_ids` sent (comma-separated). Returns the full matching list, unpaginated | The "add students" picker when creating or editing a student group |
 | PUT    | `/{course_id}/students/mine`            | Sets the logged-in instructor's complete list of students for this course (from any of the course's groups). Students added to the list are assigned, students removed from it are unassigned           | Confirming the instructor's course-wide selection            |
 | GET    | `/{course_id}/students/mine/submissions/evaluative`            | Retrieval of the logged-in instructor's assigned students on this course, each with their completed evaluative submissions for this course and a points summary. Students with no completed evaluative submissions are included too           | Grading page, after the instructor picks a course (from `GET /instructor`)            |
+| GET    | `/{course_id}/assignments/submission-overview`            | Retrieval of every assignment of the course with how many students submitted it and its rule groups           | Submitted assignments list, after the instructor picks a course            |
+| GET    | `/{course_id}/assignments/{assignment_id}/submissions/zip`            | Download of a zip with each student's latest submitted PDF for the assignment, in one folder per instructor           | "Download submissions" action on the submitted assignments list            |
 | GET    | `/{course_id}/submissions/{submission_id}/evaluation`            | Everything needed to view and grade one evaluative submission: course, student, assignment, the submitted file, the AI's suggested grades and the instructor's final grades per rule (grouped by rule group), points, and what the instructor is allowed to do           | Submission evaluation page (create/edit/view)            |
 | POST   | `/{course_id}/submissions/{submission_id}/evaluation/final`            | First grading of a submission: the instructor's final grade and feedback for every rule           | "Save" on the evaluation page when `grading_status` is `NOT_GRADED` and `permissions.can_grade` is `true`            |
 | PUT    | `/{course_id}/submissions/{submission_id}/evaluation/final`            | Replaces an existing final evaluation. Every rule must be sent again, changed or not           | "Save" on the evaluation page when `grading_status` is `GRADED` and `permissions.can_edit_grade` is `true`            |
@@ -744,6 +740,57 @@ data part is None, only the message gets returned.
   }
 ]
 ```
+#### `GET /{course_id}/assignments/submission-overview`
+```json
+{
+  "course": {
+    "id": 1,
+    "name": "Probni naziv kursa"
+  },
+  "assignments": [
+    {
+      "id": 201,
+      "name": "Zadatak 1",
+      "start_date": "2026-08-03T00:00:00",
+      "end_date": "2026-08-07T00:00:00",
+      "submission_mode_id": 1,
+      "percentage_of_points_in_course": 80,
+      "submitted_count": 12,
+      "rule_groups": [
+        {
+          "id": 31,
+          "name": "UX/UI Design",
+          "percentage_of_points_in_assignment": 20,
+          "rules_count": 15
+        }
+      ]
+    }
+  ]
+}
+```
+- Every assignment of the course is listed (evaluative and interactive), ordered by start date. An assignment nobody submitted has `submitted_count: 0`.
+- `submitted_count` is the number of students with at least one `COMPLETED` submission for the assignment. A student who submitted several times counts once; uploads still processing (`PENDING`) or `FAILED` don't count.
+- `rule_groups` are the rule groups linked to the assignment, sorted by name (same order as on the evaluation page). `rules_count` is the number of rules in the rule group.
+- Access: the instructor must have created the course or been added to it.
+- `400 Bad Request`, code `INVALID_COURSE_ID`, if `course_id` isn't a positive integer.
+- `404 Not Found`, code `COURSE_NOT_FOUND`, if the course doesn't exist or was deleted.
+- `403 Forbidden`, code `COURSE_ACCESS_DENIED`, if the logged-in instructor has no access to the course.
+#### `GET /{course_id}/assignments/{assignment_id}/submissions/zip`
+```
+HTTP/1.1 200 OK
+Content-Type: application/zip
+Content-Disposition: attachment; filename="assignment-201-submissions.zip"
+```
+- Returns the zip file itself, not wrapped in `{ "message", "data" }`. Like every endpoint it needs the login token, so the FE has to download it with an authenticated request (e.g. `fetch` → blob) rather than a plain link.
+- Contains each student's **latest** uploaded PDF for the assignment, whatever its status (an upload that's still processing or whose AI grading failed is still the student's latest paper). Older uploads are left out.
+- Files are in one folder per instructor (`{name}_{surname}/`), the instructor the student is assigned to on this course, or `Unassigned/` if none. Each file is named `{index}_{name}_{surname}.pdf`.
+- Includes all students of the course, not only the logged-in instructor's.
+- An assignment with no submissions returns `200` with an empty zip.
+- Access: the instructor must have created the course or been added to it.
+- `400 Bad Request`, code `INVALID_COURSE_ID` / `INVALID_ASSIGNMENT_ID`, if `course_id` / `assignment_id` isn't a positive integer.
+- `404 Not Found`, code `COURSE_NOT_FOUND`, if the course doesn't exist or was deleted.
+- `404 Not Found`, code `ASSIGNMENT_NOT_FOUND`, if the assignment doesn't exist or belongs to a different course.
+- `403 Forbidden`, code `COURSE_ACCESS_DENIED`, if the logged-in instructor has no access to the course.
 #### `GET /{course_id}/students/mine/submissions/evaluative`
 ```json
 {
