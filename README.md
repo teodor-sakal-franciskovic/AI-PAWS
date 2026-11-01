@@ -1290,6 +1290,7 @@ Content-Disposition: attachment; filename="assignment-201-submissions.zip"
 | Method | Path                      | Description                                   | FE Usage                                 |
 |--------|---------------------------|-----------------------------------------------|----------------------------------------------|
 | GET    | `/`            | Retrieval of all active users with the Instructor role           | Used to populate the instructor picker on the course creation screen                            |
+| GET    | `/me/dashboard`            | Retrieval of the logged-in instructor's grading overview: totals, plus per-course student and evaluative submission counts           | Instructor's dashboard / home screen                            |
 
 ### Return Value Examples
 #### `GET /`
@@ -1305,6 +1306,46 @@ Content-Disposition: attachment; filename="assignment-201-submissions.zip"
   }
 ]
 ```
+#### `GET /me/dashboard`
+```json
+{
+  "summary": {
+    "enrollments_count": 5,
+    "active_course_count": 2,
+    "ungraded_submissions_count": 3,
+    "longest_waiting_days": 12
+  },
+  "courses": [
+    {
+      "id": 101,
+      "name": "Objektno-orijentisano programiranje",
+      "student_count": 3,
+      "students_without_submissions_count": 1,
+      "completed_submissions_count": 5,
+      "graded_submissions_count": 3,
+      "ungraded_submissions_count": 2,
+      "longest_waiting_days": 12
+    },
+    {
+      "id": 102,
+      "name": "Analiza finansijskih izvestaja",
+      "student_count": 2,
+      "students_without_submissions_count": 0,
+      "completed_submissions_count": 3,
+      "graded_submissions_count": 2,
+      "ungraded_submissions_count": 1,
+      "longest_waiting_days": 4
+    }
+  ]
+}
+```
+- `courses` lists every non-deleted course the instructor created or was added to (the same courses as `GET /courses/instructor`), ordered by id. A course with no assigned students is included, with zeros.
+- All counts cover only the students assigned to the logged-in instructor on that course (see `PUT /courses/{course_id}/students/mine`), so they match `GET /courses/{course_id}/students/mine/submissions/evaluative`.
+- Submissions count the same way as on that page: only `COMPLETED` submissions on evaluative assignments, and only the latest one per student and assignment.
+- `student_count` is the number of assigned students. `students_without_submissions_count` is how many of them have no completed evaluative submission.
+- `longest_waiting_days` is the age, in whole days, of the oldest ungraded submission, counted from when it was submitted. It's `0` if nothing is waiting, or if the oldest one was submitted less than a day ago.
+- `summary.enrollments_count` is the sum of `student_count` over all `courses`, so a student on two courses counts twice. `summary.active_course_count` is the number of `courses`. `summary.ungraded_submissions_count` is the total across `courses`, and `summary.longest_waiting_days` is the highest value across them.
+- `401 Unauthorized`, code `UNAUTHORIZED`, if not logged in or the logged-in user isn't an instructor.
 
 ## /students
 - Registration is now a standalone step, separate from group creation — a registered student has no group and no assigned instructor until later steps (`POST /groups/` and `PUT /courses/{course_id}/students/mine`).

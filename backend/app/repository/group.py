@@ -254,6 +254,26 @@ def retrieve_already_assigned_student_ids(
     return [row[0] for row in rows]
 
 
+def retrieve_assigned_student_counts(
+    db: Session, course_ids: list[int], instructor_id: int
+) -> dict[int, int]:
+    if not course_ids:
+        return {}
+    rows = (
+        db.query(
+            CourseStudentInstructor.course_id,
+            func.count(CourseStudentInstructor.student_id),
+        )
+        .filter(
+            CourseStudentInstructor.course_id.in_(course_ids),
+            CourseStudentInstructor.instructor_id == instructor_id,
+        )
+        .group_by(CourseStudentInstructor.course_id)
+        .all()
+    )
+    return {course_id: count for course_id, count in rows}
+
+
 def is_student_assigned_to_instructor(
     db: Session, course_id: int, student_id: int, instructor_id: int
 ) -> bool:

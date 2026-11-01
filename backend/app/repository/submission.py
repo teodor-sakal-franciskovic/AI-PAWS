@@ -1,7 +1,8 @@
-from sqlalchemy import case
+from sqlalchemy import and_, case
 from sqlalchemy.orm import Session, defer
 
 from ..models.assignment import Assignment
+from ..models.course_student_instructor import CourseStudentInstructor
 from ..models.feedback import Feedback
 from ..models.fulfillment import Fulfillment
 from ..models.rule import Rule
@@ -102,6 +103,43 @@ def retrieve_submission_file(db: Session, submission_id: int):
         .join(User, User.id == Submission.user_id)
         .filter(Submission.id == submission_id)
         .first()
+    )
+
+
+def retrieve_latest_completed_evaluative_for_instructor(
+    db: Session, course_ids: list[int], instructor_id: int, evaluative_mode_id: int
+):
+    if not course_ids:
+        return []
+    return (
+        db.query(
+            Assignment.course_id,
+            Submission.user_id,
+            Submission.graded,
+            Submission.submitted_at,
+        )
+        .join(Assignment, Assignment.id == Submission.assignment_id)
+        .join(
+            CourseStudentInstructor,
+            and_(
+                CourseStudentInstructor.course_id == Assignment.course_id,
+                CourseStudentInstructor.student_id == Submission.user_id,
+            ),
+        )
+        .filter(
+            CourseStudentInstructor.instructor_id == instructor_id,
+            Assignment.course_id.in_(course_ids),
+            Assignment.submission_mode_id == evaluative_mode_id,
+            Submission.status == SubmissionStatus.COMPLETED.value,
+        )
+        .distinct(Submission.user_id, Submission.assignment_id)
+        .order_by(
+            Submission.user_id,
+            Submission.assignment_id,
+            Submission.submitted_at.desc(),
+            Submission.id.desc(),
+        )
+        .all()
     )
 
 
