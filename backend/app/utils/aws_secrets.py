@@ -51,7 +51,7 @@ class AWSSecretsManager:
             return {}
         
         secrets = {}
-        secret_types = ["database", "application", "smtp", "google", "openai"]
+        secret_types = ["database", "application", "smtp", "google", "anthropic"]
         
         for secret_type in secret_types:
             secret_name = f"ai-paws-{secret_type}-{self.environment}"

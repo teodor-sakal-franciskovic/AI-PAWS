@@ -17,10 +17,9 @@ from ..utils.user import build_students_data
 from ..utils.logger import logger
 from ..llm.prompt import (
     generate_user_prompt_for_initial_student_knowledge_creation,
-    initialise_format_instructions,
-    generate_whole_prompt,
     call_llm,
 )
+from ..llm.schema import LLMInitialKnowledgeResponse
 
 
 def generate_initial_student_knowledge(df: pd.DataFrame, llm):
@@ -34,7 +33,7 @@ def generate_initial_student_knowledge(df: pd.DataFrame, llm):
         logger.info("[BACKGROUND] Building students data from the df...")
         students_data: List[Dict[str, Any]] = build_students_data(df, rule_descriptions)
         logger.info(
-            f"[BACKGROUND] Successfully built students data from the df: {students_data}"
+            f"[BACKGROUND] Successfully built data for {len(students_data)} students from the df"
         )
 
         logger.info("[BACKGROUND] Retrieving prompts...")
@@ -54,20 +53,18 @@ def generate_initial_student_knowledge(df: pd.DataFrame, llm):
             user_prompt = generate_user_prompt_for_initial_student_knowledge_creation(
                 initial_interactive_prompt_template, data
             )
-            parser, format_instructions = initialise_format_instructions(
-                "LLMInitialKnowledgeResponse"
-            )
-            prompt = generate_whole_prompt(format_instructions)
-            logger.info("[BACKGROUND] Calling GPT API...")
+            logger.info("[BACKGROUND] Calling the LLM...")
             try:
-                response = call_llm(prompt, llm, parser, system_prompt, user_prompt)
+                response = call_llm(
+                    llm, LLMInitialKnowledgeResponse, system_prompt, user_prompt
+                )
             except Exception as e:
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Something went wrong while calling the GPT API: {e}",
+                    detail=f"Something went wrong while calling the LLM: {e}",
                 )
             logger.info(
-                f"[BACKGROUND] Initial student knowledge: {response.initial_student_knowledge}"
+                f"[BACKGROUND] Generated initial student knowledge for student {index}"
             )
             user: User = retrieve_user_by_index(db, index)
             insert_initial_student_historical_profile(

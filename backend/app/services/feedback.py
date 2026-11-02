@@ -1,15 +1,18 @@
+import re
+from concurrent.futures import ThreadPoolExecutor
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..llm.prompt import (
     call_llm,
-    generate_whole_prompt,
+    call_llm_with_checks,
     generate_user_prompt_for_initial_interactive_and_evaluative_mode,
     generate_additional_interactive_user_prompt,
     generate_evaluative_user_prompt,
     generate_system_prompt,
-    initialise_format_instructions,
 )
+from ..models.assignment import Assignment
 from ..models.historical_profile import HistoricalProfile
 from ..models.prompt_template import PromptTemplate
 from ..models.submission import Submission
@@ -23,6 +26,7 @@ from ..llm.schema import (
     LLMEvaluationResponse,
     LLMRuleEvaluation,
 )
+from ..repository.course import retrieve_feedback_language_name
 from ..repository.historical_profile import retrieve_latest
 from ..repository.prompt_template import retrieve_by_purpose
 from ..repository.rule import (
@@ -42,19 +46,22 @@ from ..utils.feedback import (
 from ..utils.logger import logger
 from ..schemas.feedback import InteractiveFeedbackResponse
 
+DEFAULT_FEEDBACK_LANGUAGE = "the language of the paper"
+MAX_PARALLEL_GROUP_CALLS = 5
+
 
 def _call_llm_with_retry(
-    prompt, llm, parser, system_prompt, user_prompt, expected_count: int, count_fn
+    llm, response_schema, system_prompt, user_prompt, expected_count: int, count_fn
 ):
     max_retries = 3
     response = None
     for attempt in range(max_retries):
         try:
-            response = call_llm(prompt, llm, parser, system_prompt, user_prompt)
+            response = call_llm(llm, response_schema, system_prompt, user_prompt)
         except Exception as e:
             raise HTTPException(
                 status_code=500,
-                detail=f"Something went wrong while calling the GPT API: {e}",
+                detail=f"Something went wrong while calling the LLM: {e}",
             )
         actual_count = count_fn(response)
         logger.info(
@@ -117,20 +124,16 @@ def request_initial_interactive_feedback(
     )
     logger.info("Successfully formed user prompt")
 
-    parser, format_instructions = initialise_format_instructions("LLMFeedbackResponse")
-    prompt = generate_whole_prompt(format_instructions)
-
-    logger.info(f"Calling GPT API... user {user.id}")
+    logger.info(f"Calling the LLM... user {user.id}")
     response = _call_llm_with_retry(
-        prompt,
         llm,
-        parser,
+        LLMFeedbackResponse,
         system_prompt,
         user_prompt,
         number_of_rules,
         lambda r: len(r.feedback),
     )
-    logger.info(f"Successfully received the response from the GPT API: {response}")
+    logger.info("Successfully received the response from the LLM")
     return response
 
 
@@ -172,69 +175,89 @@ def request_additional_interactive_feedback(
     )
     logger.info("Successfully formed user prompt")
 
-    parser, format_instructions = initialise_format_instructions(
-        "LLMAdditionalFeedbackResponse"
-    )
-    prompt = generate_whole_prompt(format_instructions)
-
-    logger.info("Calling GPT API...")
+    logger.info("Calling the LLM...")
     try:
-        response = call_llm(prompt, llm, parser, system_prompt, user_prompt)
+        response = call_llm(
+            llm, LLMAdditionalFeedbackResponse, system_prompt, user_prompt
+        )
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Something went wrong while calling the GPT API: {e}",
+            detail=f"Something went wrong while calling the LLM: {e}",
         )
-    logger.info("Successfully received the response from the GPT API")
+    logger.info("Successfully received the response from the LLM")
     return response
+
+
+def _normalize_for_quote_match(text: str) -> str:
+    return re.sub(r"\W+", " ", re.sub(r"-\s*\n\s*", "", text)).casefold().strip()
+
+
+def _rule_ids_problem(response, expected_rule_ids: list[int]) -> str | None:
+    returned = sorted(evaluation.rule_id for evaluation in response.evaluation)
+    if returned != expected_rule_ids:
+        return f"Expected rule ids {expected_rule_ids}, got {returned}"
+    return None
+
+
+def _invented_quotes_problem(response, normalized_paper: str) -> str | None:
+    invented = [
+        quote
+        for evaluation in response.evaluation
+        for quote in evaluation.evidence
+        if _normalize_for_quote_match(quote) not in normalized_paper
+    ]
+    return f"Quotes not found in the paper: {len(invented)}" if invented else None
 
 
 def request_evaluation(
-    db: Session,
-    llm,
-    submission: Submission,
-    user: User,
-    rules: list,
-    assignment_name: str,
-) -> LLMEvaluationResponse:
-    logger.info(f"Retrieving evaluation prompt template for user {user.id}...")
-    evaluative_prompt_template: PromptTemplate = retrieve_by_purpose(db, "Evaluative")
-    logger.info("Successfully retrieved evaluation prompt template")
-
-    logger.info(f"Retrieving the latest historical profile for {user.id}...")
-    latest_historical_profile: HistoricalProfile = retrieve_latest(db, user.id)
-    logger.info("Successfully retrieved the latest historical profile")
-
-    number_of_rules = len(rules)
-    logger.info(f"Forming system prompt: user {user.id}")
-    system_prompt = generate_system_prompt(
-        latest_historical_profile, evaluative_prompt_template
+    db: Session, llm, submission: Submission, rules: list, assignment: Assignment
+) -> list[LLMRuleEvaluation]:
+    template: PromptTemplate = retrieve_by_purpose(db, "Evaluative")
+    feedback_language = (
+        retrieve_feedback_language_name(db, assignment.course_id)
+        or DEFAULT_FEEDBACK_LANGUAGE
     )
-    logger.info("Successfully formed system prompt")
+    system_prompt = template.system_text.format(feedback_language=feedback_language)
+    normalized_paper = _normalize_for_quote_match(submission.text)
 
-    logger.info(f"Forming user prompt with {number_of_rules} rules: user {user.id}")
-    user_prompt = generate_evaluative_user_prompt(
-        evaluative_prompt_template, rules, submission.text, assignment_name
-    )
-    logger.info("Successfully formed user prompt")
+    rules_by_group: dict[int, list] = {}
+    for rule in rules:
+        rules_by_group.setdefault(rule.rule_group_id, []).append(rule)
+    group_calls = [
+        (
+            sorted(rule.rule_id for rule in group_rules),
+            generate_evaluative_user_prompt(
+                template, assignment.name, submission.text, group_rules, rules
+            ),
+        )
+        for group_rules in rules_by_group.values()
+    ]
 
-    parser, format_instructions = initialise_format_instructions(
-        "LLMEvaluationResponse"
-    )
-    prompt = generate_whole_prompt(format_instructions)
+    def evaluate_group(group_call) -> list[LLMRuleEvaluation]:
+        expected_rule_ids, user_prompt = group_call
+        response = call_llm_with_checks(
+            llm,
+            LLMEvaluationResponse,
+            system_prompt,
+            user_prompt,
+            lambda r: _rule_ids_problem(r, expected_rule_ids),
+        )
+        quotes_problem = _invented_quotes_problem(response, normalized_paper)
+        if quotes_problem:
+            logger.warning(quotes_problem)
+        return response.evaluation
 
-    logger.info(f"Calling GPT API... user {user.id}")
-    response = _call_llm_with_retry(
-        prompt,
-        llm,
-        parser,
-        system_prompt,
-        user_prompt,
-        number_of_rules,
-        lambda r: len(r.evaluation),
-    )
-    logger.info(f"Successfully received the response from the GPT API: {response}")
-    return response
+    logger.info(f"Evaluating {len(rules)} rules in {len(group_calls)} LLM calls...")
+    first_call, *remaining_calls = group_calls
+    evaluations = list(evaluate_group(first_call))
+    if remaining_calls:
+        with ThreadPoolExecutor(
+            max_workers=min(len(remaining_calls), MAX_PARALLEL_GROUP_CALLS)
+        ) as pool:
+            for group_evaluations in pool.map(evaluate_group, remaining_calls):
+                evaluations.extend(group_evaluations)
+    return evaluations
 
 
 def create_feedback_objects_for_interactive_mode(
@@ -281,9 +304,7 @@ def update_feedback_with_additional_context(
     feedback: Feedback = update_with_additional_text(
         db, feedback_id, additional_feedback
     )
-    logger.info(
-        f"Successfully updated feedback with additional context: {additional_feedback}"
-    )
+    logger.info("Successfully updated feedback with additional context")
     rule: Rule = retrieve_rule_by_id(db, feedback.rule_id)
     return InteractiveFeedbackResponse(
         id=feedback.id,

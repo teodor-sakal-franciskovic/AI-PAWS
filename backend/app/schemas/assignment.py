@@ -78,12 +78,23 @@ class SubmissionOverviewResponse(BaseModel):
     assignments: list[OverviewAssignmentResponse] = []
 
 
+class AssignmentRulesAssignmentResponse(BaseModel):
+    id: int
+    name: str
+    start_date: datetime
+    end_date: datetime
+
+
+class AssignmentRulesResponse(BaseModel):
+    course: OverviewCourseResponse
+    assignment: AssignmentRulesAssignmentResponse
+    rule_groups: list[RuleGroupResponse] = []
+
+
 class SubmittedSubmissionForAssignmentResponse(BaseModel):
     id: int
     name: str
     start_date: datetime
     end_date: datetime
     submission_mode: str
-    chapter_id: int
-    chapter_name: str
     submission: Any

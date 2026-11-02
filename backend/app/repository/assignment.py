@@ -5,8 +5,9 @@ from sqlalchemy.orm import Session, aliased
 
 from ..models.assignment import Assignment
 from ..models.assignment_rule_group import AssignmentRuleGroup
-from ..models.course_group import CourseGroup
+from ..models.course import Course
 from ..models.course_student_instructor import CourseStudentInstructor
+from ..models.group_student import GroupStudent
 from ..models.rule import Rule
 from ..models.rule_group import RuleGroup
 from ..models.submission import Submission, SubmissionStatus
@@ -41,11 +42,42 @@ def retrieve_rule_group_summaries(db: Session, assignment_ids: list[int]):
         )
         .join(RuleGroup, RuleGroup.id == AssignmentRuleGroup.rule_group_id)
         .outerjoin(rules_per_group, rules_per_group.c.rule_group_id == RuleGroup.id)
-        .filter(AssignmentRuleGroup.assignment_id.in_(assignment_ids))
+        .filter(
+            AssignmentRuleGroup.assignment_id.in_(assignment_ids),
+            RuleGroup.is_active.is_(True),
+        )
         .order_by(
             AssignmentRuleGroup.assignment_id,
             RuleGroup.name.collate(UNICODE_COLLATION),
             RuleGroup.id,
+        )
+        .all()
+    )
+
+
+def retrieve_assignment_rules(db: Session, assignment_id: int):
+    return (
+        db.query(
+            RuleGroup.id.label("rule_group_id"),
+            RuleGroup.name.label("rule_group_name"),
+            AssignmentRuleGroup.percentage_of_points_in_assignment,
+            Rule.id.label("rule_id"),
+            Rule.name.label("rule_name"),
+            Rule.user_description,
+            Rule.generated_description,
+            Rule.include_in_prompt,
+        )
+        .join(AssignmentRuleGroup, AssignmentRuleGroup.rule_group_id == RuleGroup.id)
+        .join(Rule, Rule.rule_group_id == RuleGroup.id)
+        .filter(
+            AssignmentRuleGroup.assignment_id == assignment_id,
+            RuleGroup.is_active.is_(True),
+        )
+        .order_by(
+            RuleGroup.name.collate(UNICODE_COLLATION),
+            RuleGroup.id,
+            Rule.name.collate(UNICODE_COLLATION),
+            Rule.id,
         )
         .all()
     )
@@ -113,55 +145,38 @@ def retrieve_rule_group_percentages(
     return {rule_group_id: percentage for rule_group_id, percentage in rows}
 
 
-def retrieve_active_assignments_for_group(
-    db: Session, group_ids: list[int], user_id: int
-):
-    if not group_ids:
-        return []
-    now = datetime.now(timezone.utc)
-
+def _assignments_with_latest_submission(db: Session, student_id: int):
     return (
         db.query(Assignment, Submission)
-        .join(CourseGroup, Assignment.id == CourseGroup.assignment_id)
+        .join(Course, Course.id == Assignment.course_id)
+        .join(GroupStudent, GroupStudent.course_id == Assignment.course_id)
         .outerjoin(
             Submission,
             and_(
                 Submission.assignment_id == Assignment.id,
-                Submission.user_id == user_id,
+                Submission.user_id == student_id,
             ),
         )
-        .filter(
-            Assignment.start_date <= now,
-            Assignment.end_date >= now,
-            CourseGroup.group_id.in_(group_ids),
-        )
-        .distinct()
+        .filter(GroupStudent.student_id == student_id, Course.is_active.is_(True))
+        .distinct(Assignment.id)
+        .order_by(Assignment.id, Submission.submitted_at.desc(), Submission.id.desc())
+    )
+
+
+def retrieve_active_assignments_with_submissions(db: Session, student_id: int):
+    now = datetime.now(timezone.utc)
+    return (
+        _assignments_with_latest_submission(db, student_id)
+        .filter(Assignment.start_date <= now, Assignment.end_date >= now)
         .all()
     )
 
 
-def retrieve_past_submissions_with_assignments_for_user(
-    db: Session, group_ids: list[int], user_id: int
-):
-    if not group_ids:
-        return []
+def retrieve_past_assignments_with_submissions(db: Session, student_id: int):
     now = datetime.now(timezone.utc)
-
     return (
-        db.query(Assignment, Submission)
-        .join(CourseGroup, Assignment.id == CourseGroup.assignment_id)
-        .outerjoin(
-            Submission,
-            and_(
-                Submission.assignment_id == Assignment.id,
-                Submission.user_id == user_id,
-            ),
-        )
-        .filter(
-            Assignment.end_date < now,
-            CourseGroup.group_id.in_(group_ids),
-        )
-        .distinct()
+        _assignments_with_latest_submission(db, student_id)
+        .filter(Assignment.end_date < now)
         .all()
     )
 

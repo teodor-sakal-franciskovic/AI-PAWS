@@ -144,6 +144,7 @@ def update_rule_group(
             rule.include_in_prompt = rule_data.include_in_prompt
             if description_changed:
                 rule.prompt_description = None
+                rule.generated_description = None
                 db.flush()
                 rules_needing_generation.append(rule.id)
         else:
@@ -163,13 +164,6 @@ def update_rule_group(
     return rules_needing_generation
 
 
-def retrieve_rules_needing_prompt(db: Session, rule_group_id: int) -> list[Rule]:
-    return (
-        db.query(Rule)
-        .filter(
-            Rule.rule_group_id == rule_group_id,
-            Rule.include_in_prompt == True,  # noqa: E712
-            Rule.prompt_description == None,  # noqa: E711
-        )
-        .all()
-    )
+def retrieve_name(db: Session, rule_group_id: int) -> str | None:
+    row = db.query(RuleGroup.name).filter(RuleGroup.id == rule_group_id).first()
+    return row[0] if row else None

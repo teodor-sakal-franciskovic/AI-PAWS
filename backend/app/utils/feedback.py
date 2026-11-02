@@ -61,8 +61,8 @@ def generate_evaluative_mode_feedbacks_and_fulfillments(
     logger.info(f"Creating feedback and fulfillment objects for {len(rules)} rules...")
     for rule in rules:
         llm_evaluation = llm_evaluations_by_rule.get(rule.rule_id)
-        logger.info(f"Matching LLM rule evaluation for rule {rule.rule_id}: {llm_evaluation}")
         grade = llm_evaluation.grade if llm_evaluation else None
+        logger.info(f"Matching LLM rule evaluation for rule {rule.rule_id}: grade {grade}")
         feedback = Feedback(
             feedback_text=llm_evaluation.grade_explanation if llm_evaluation else "",
             rule_id=rule.rule_id,

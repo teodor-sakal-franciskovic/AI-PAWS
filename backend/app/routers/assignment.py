@@ -12,6 +12,7 @@ from ..dependencies.llm import initialise_llm
 
 from ..services.assignment import (
     create_assignment,
+    get_assignment_rules,
     retrieve_active_assignments_for_student,
     retrieve_previous_assignments_for_student,
     retrieve_assignments,
@@ -29,6 +30,7 @@ from ..schemas.response import GenericResponse, IdResponse
 from ..schemas.assignment import (
     AssignmentCreate,
     AssignmentResponse,
+    AssignmentRulesResponse,
     SubmittedSubmissionForAssignmentResponse,
 )
 
@@ -112,6 +114,25 @@ def retrieve_all_assignments_endpoint(
                 data=assignments_response,
             ).model_dump_json()
         ),
+    )
+
+
+@router.get("/{assignment_id}/rules", response_model=GenericResponse)
+def get_assignment_rules_endpoint(
+    assignment_id: int,
+    role: Annotated[Role, Depends(require_role())],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Session = Depends(get_db),
+):
+    assignment_rules = get_assignment_rules(db, assignment_id, current_user.id, role.name)
+    return JSONResponse(
+        status_code=200,
+        content=GenericResponse(
+            message="Successfully retrieved the assignment's rules.",
+            data=AssignmentRulesResponse.model_validate(assignment_rules).model_dump(
+                mode="json"
+            ),
+        ).model_dump(),
     )
 
 

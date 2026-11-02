@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..dependencies.auth import get_current_active_user, require_role
 from ..dependencies.db import get_db
+from ..dependencies.llm import initialise_llm
 from ..exceptions import ApiError
 from ..models.role import Role
 from ..models.user import User
@@ -39,10 +40,11 @@ def create_rule_group_endpoint(
     background_tasks: BackgroundTasks,
     role: Annotated[Role, Depends(require_role("Instructor"))],
     current_user: Annotated[User, Depends(get_current_active_user)],
+    llm=Depends(initialise_llm),
     db: Session = Depends(get_db),
 ):
     rule_group_id = create_rule_group(db, data, current_user.id)
-    background_tasks.add_task(generate_prompt_descriptions, rule_group_id)
+    background_tasks.add_task(generate_prompt_descriptions, rule_group_id, llm)
     return JSONResponse(
         status_code=201,
         content=GenericResponse(
@@ -137,11 +139,12 @@ def update_rule_group_endpoint(
     background_tasks: BackgroundTasks,
     role: Annotated[Role, Depends(require_role("Instructor"))],
     current_user: Annotated[User, Depends(get_current_active_user)],
+    llm=Depends(initialise_llm),
     db: Session = Depends(get_db),
 ):
     rule_ids = update_rule_group(db, rule_group_id, data, current_user.id)
     if rule_ids:
-        background_tasks.add_task(generate_prompt_descriptions, rule_group_id)
+        background_tasks.add_task(generate_prompt_descriptions, rule_group_id, llm)
     return Response(status_code=204)
 
 

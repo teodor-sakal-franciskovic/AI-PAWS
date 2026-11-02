@@ -1,8 +1,9 @@
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..models.assignment_rule_group import AssignmentRuleGroup
 from ..models.rule import Rule
+from ..models.rule_group import RuleGroup
 
 
 # DEPRECATED
@@ -20,13 +21,22 @@ def retrieve_rules_for_assignment(db: Session, assignment_id: int):
             func.coalesce(Rule.prompt_description, Rule.user_description).label(
                 "rule_description"
             ),
+            Rule.user_description,
             Rule.include_in_prompt,
+            Rule.rule_group_id,
+            or_(
+                Rule.prompt_description.is_(None), Rule.generated_description.is_(None)
+            ).label("needs_compiling"),
         )
         .join(
             AssignmentRuleGroup,
             AssignmentRuleGroup.rule_group_id == Rule.rule_group_id,
         )
-        .filter(AssignmentRuleGroup.assignment_id == assignment_id)
+        .join(RuleGroup, RuleGroup.id == Rule.rule_group_id)
+        .filter(
+            AssignmentRuleGroup.assignment_id == assignment_id,
+            RuleGroup.is_active.is_(True),
+        )
         .order_by(Rule.rule_group_id, Rule.id)
         .all()
     )

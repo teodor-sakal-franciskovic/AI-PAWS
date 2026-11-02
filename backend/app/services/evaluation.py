@@ -178,6 +178,7 @@ def _rule_groups(rules: list, percentages, max_points) -> list[dict]:
                         "position": rule_position,
                         "name": rule.rule_name,
                         "description": rule.rule_description,
+                        "generated_description": rule.rule_generated_description,
                         "evaluation": {
                             "ai_suggestion": {
                                 "feedback_text": rule.feedback_text,

@@ -34,7 +34,8 @@ AI-Powered Academic Writing Support
 | POST    | `/`            | Creation of a new assignment           | TA screen for creating assignments                            |
 | GET    | `/`            | Retrieval of all assignments           | TA screen for retrieving all assignments before downloading a zip of all submissions for a specific assignment                            |
 | GET    | `/active`       | Retrieval of currently active assignments for submission      | Student screen when taking a look at active assignments                    |
-| GET   | `/previous`            | Retrieval of previously submitted assignments            | Student screen when taking a look at previously submitted assignments                          |
+| GET   | `/previous`            | Retrieval of assignments whose end date has passed, with the student's latest submission            | Student screen when taking a look at previous assignments                          |
+| GET   | `/{assignment_id}/rules`            | Retrieval of all the rules of an assignment, grouped by rule group            | Page showing an assignment's rules, for students and instructors                          |
 | POST   | `/{assignment_id}/chapters/{chapter_id}/interactive`            | Upload of the currently-written research paper and retrieval of the received feedback            | Student screen when uploading a research paper as an assignment, after the upload, view of all of the received feedback                          |
 | POST   | `/{assignment_id}/submissions/evaluative`            | Student upload of a paper (PDF) for an evaluative assignment. The AI grades it in the background against the assignment's rule groups            | Student screen when submitting a paper for an evaluative assignment; the student gets no feedback right away — the instructor reviews/finalises the AI's grades first (`/courses/{course_id}/submissions/{submission_id}/evaluation`).
 ### Body Examples
@@ -73,7 +74,10 @@ multipart/form-data with a single "file" field containing the PDF
 }
 ```
 #### `GET /active`
-- "status" can be "COMPLETED", "PENDING", "FAILED" 
+- Assignments open right now in the courses the student is enrolled in (i.e. they're in a group on that course). Deleted courses are left out.
+- `submission` is the student's latest submission for the assignment, or `{}` if they haven't submitted yet.
+- "status" can be "COMPLETED", "PENDING", "FAILED"
+- For an evaluative submission, `rule_feedbacks` is `[]` and `achieved_points_percentage` is `null` until the instructor has finalised the grades. `rule_feedbacks` then holds the instructor's final grades and explanations. Interactive feedback is returned right away.
 ```json
 [{
   "id": 1,
@@ -81,8 +85,6 @@ multipart/form-data with a single "file" field containing the PDF
   "start_date": "2025-06-01T09:00:00Z",
   "end_date": "2025-06-15T23:59:00Z",
   "submission_mode": "Evaluative mode",
-  "chapter_id": 1,
-  "chapter_name": "Problem",
   "submission": {
     "id": 101,
     "submitted_at": "2025-06-15T18:45:00Z",
@@ -121,7 +123,7 @@ multipart/form-data with a single "file" field containing the PDF
 ]
 ```
 #### `GET /previous`
-- "status" can be "COMPLETED", "PENDING", "FAILED" 
+- Same as `GET /active`, for assignments whose end date has passed, including those the student never submitted.
 ```json
 [{
   "id": 1,
@@ -129,8 +131,6 @@ multipart/form-data with a single "file" field containing the PDF
   "start_date": "2025-06-01T09:00:00Z",
   "end_date": "2025-06-15T23:59:00Z",
   "submission_mode": "Evaluative mode",
-  "chapter_id": 1,
-  "chapter_name": "Problem",
   "submission": {
     "id": 101,
     "submitted_at": "2025-06-15T18:45:00Z",
@@ -169,6 +169,45 @@ multipart/form-data with a single "file" field containing the PDF
 ]
 ```
 
+#### `GET /{assignment_id}/rules`
+```json
+{
+  "message": "Successfully retrieved the assignment's rules.",
+  "data": {
+    "course": { "id": 10, "name": "Academic Writing" },
+    "assignment": {
+      "id": 201,
+      "name": "Results",
+      "start_date": "2026-03-01T00:00:00",
+      "end_date": "2026-12-01T00:00:00"
+    },
+    "rule_groups": [
+      {
+        "id": 3,
+        "name": "Chapter rules",
+        "percentage_of_points_in_assignment": 60.0,
+        "rules": [
+          {
+            "id": 12,
+            "name": "Final Paragraph",
+            "user_description": "Results must be summarized and future work outlined.",
+            "generated_description": "The final paragraph summarizes the results and outlines future work.",
+            "include_in_prompt": true
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+- `user_description` is what the instructor wrote. `generated_description` is its more precise version (see `## /rule-groups`), and is `null` until generated.
+- Rule groups are sorted alphabetically by name, and rules alphabetically by name inside each rule group, in the same order as the evaluation page. Deleted rule groups are left out.
+- **Access:** students enrolled in the assignment's course (i.e. they're in a group on that course), and instructors who created or were added to the course.
+- Errors use the V2 error format (see **Endpoints V2** below):
+  - `404 Not Found`, code `ASSIGNMENT_NOT_FOUND`, if the assignment doesn't exist or its course was deleted.
+  - `403 Forbidden`, code `ASSIGNMENT_ACCESS_DENIED`, if the user has no access to the course.
+  - `401 Unauthorized`, code `UNAUTHORIZED`, if not logged in.
+
 #### `POST /{assignment_id}/chapters/{chapter_id}/interactive`
 ```json
 {
@@ -185,10 +224,15 @@ multipart/form-data with a single "file" field containing the PDF
 - `201 Created`. The submission is stored as `PENDING` and the response returns right away; the AI grades it in the background. It then becomes `COMPLETED` (ready for the instructor to grade), or `FAILED` if the AI call or processing failed.
 - Only students can submit, and only to evaluative assignments of courses they're enrolled in (i.e. they're in a group on that course). Submitting again is allowed; the grading page uses the latest completed submission.
 - The rules graded are those of the assignment's rule groups. Rules with `include_in_prompt: false` aren't sent to the AI — their row is still created, with no AI grade, for the instructor to grade.
+- How the AI grades: one LLM call per rule group, with the results merged by rule ID. The first group runs on its own and the rest then run in parallel, because the shared paper text can only be read from the prompt cache once the first call has finished. A group whose answer is invalid is retried on its own, up to 3 attempts in total. If a group still has no valid answer, the submission becomes `FAILED`.
+- Each call grades only its own group, but also sees the names and descriptions of all the assignment's rules that are sent to the AI, so a grade or suggestion doesn't contradict another group's rule.
+- Hyphens, spacing and line breaks that PDF extraction could have caused aren't graded.
+- Explanations are written in the course's `feedback_language`, addressed to the student in a formal tone with no gendered forms. A rule graded 2 gets one sentence on what satisfies it. A rule graded 1 or 0 gets at most three sentences: why the grade was reduced, what is missing, and a concrete example of the fix on an unrelated topic, so the student's own text is never rewritten.
+- The student's history (knowledge profile) plays no part in evaluative grading.
 - Errors use the V2 error format (see **Endpoints V2** below):
   - `404 Not Found`, code `ASSIGNMENT_NOT_FOUND`, if the assignment doesn't exist, isn't evaluative, or its course was deleted.
   - `403 Forbidden`, code `ASSIGNMENT_ACCESS_DENIED`, if the student isn't enrolled in the assignment's course.
-  - `409 Conflict`, code `ASSIGNMENT_HAS_NO_RULES`, if the assignment has no rule groups/rules to grade against.
+  - `409 Conflict`, code `ASSIGNMENT_HAS_NO_RULES`, if the assignment has no rule groups/rules to grade against. Deleted rule groups don't count and are never graded.
   - `400 Bad Request`, code `VALIDATION_ERROR`, if the file isn't a PDF or can't be read.
   - `401 Unauthorized`, code `UNAUTHORIZED`, if not logged in or not a student.
 
@@ -690,6 +734,7 @@ data part is None, only the message gets returned.
                 "id": 1,
                 "name": "Semantic Elements",
                 "user_description": "Use semantic tags like main.",
+                "generated_description": "Use semantic HTML tags such as main.",
                 "include_in_prompt": true
               }
             ]
@@ -715,6 +760,7 @@ data part is None, only the message gets returned.
 - Same shape (and same objects) as `GET /`, just filtered to the courses whose groups the logged-in student belongs to. Returns an empty array (with `data: []`) if the student isn't in a group.
 #### `GET /{course_id}`
 - Same shape as a single object from `GET /`.
+- Deleted rule groups aren't listed under an assignment.
 - `404 Not Found`, code `COURSE_NOT_FOUND`, if the id doesn't exist or was deleted.
 #### `GET /check-name`
 ```json
@@ -741,6 +787,7 @@ data part is None, only the message gets returned.
 ]
 ```
 #### `GET /{course_id}/assignments/submission-overview`
+- Deleted rule groups aren't listed under an assignment.
 ```json
 {
   "course": {
@@ -954,7 +1001,7 @@ Content-Disposition: attachment; filename="assignment-201-submissions.zip"
 }
 ```
 - **Access:** only the instructor the student is assigned to on this course (see `PUT /{course_id}/students/mine`), who must also have created or been added to the course, can view or grade the evaluation. Everyone else gets `403`.
-- **Which rules:** the rules the AI evaluated for this submission, even if the rule group was edited later. Rule groups are sorted alphabetically by name, and rules alphabetically by name inside each rule group, using the language-neutral Unicode order: upper/lower case and accents are ignored (so `Č` sorts with `C` and `Á` with `A`), and other scripts (Greek, Cyrillic, …) come after Latin. `position` is that order, starting at 1 (for rules, restarting in each rule group). A rule's `description` is its instructor-written description.
+- **Which rules:** the rules the AI evaluated for this submission, even if the rule group was edited later. Rule groups are sorted alphabetically by name, and rules alphabetically by name inside each rule group, using the language-neutral Unicode order: upper/lower case and accents are ignored (so `Č` sorts with `C` and `Á` with `A`), and other scripts (Greek, Cyrillic, …) come after Latin. `position` is that order, starting at 1 (for rules, restarting in each rule group). A rule's `description` is its instructor-written description, and `generated_description` is its more precise version for display (see `## /rule-groups`), `null` until generated.
 - **Grades per rule:** `ai_suggestion` is the AI's grade and explanation. `final` is the instructor's, and is `null` until the submission is graded.
 - **Points:** `assignment.max_points` = the course's `max_amount_of_points` × the assignment's `percentage_of_points_in_course` / 100 (`null` if either isn't set). Each rule group's `summary.max_points` is its share of that, based on `percentage_of_points_in_assignment`.
 - **How the score is computed:** each rule group's score is the sum of its rules' grades divided by 2 × its number of graded rules, and the groups are combined using their `percentage_of_points_in_assignment`. Example: group A (60%) fully met and group B (40%) half met gives 0.6 × 1 + 0.4 × 0.5 = 0.8. If any rule group has no percentage set, all rule groups count equally; percentages that don't add up to 100 are scaled so a fully met submission always gets 1. `ai_suggested_result` applies this to the AI's grades and `final_result` to the instructor's (`null` until graded). `achieved_points` = `fulfillment_ratio` × `max_points`, rounded to 2 decimals.
@@ -976,7 +1023,6 @@ Content-Disposition: attachment; filename="assignment-201-submissions.zip"
 ```
 - Returns the updated `evaluation` object (same shape as in `GET .../evaluation`). `POST` returns `201 Created`, `PUT` returns `200 OK`.
 - `PUT` fully replaces the existing final evaluation, and both set `graded_by`/`graded_at` to the current instructor and time.
-- After a `POST`, the student's knowledge profile is updated in the background through the AI, using the final grades (this used to happen inside the old `PUT /users/submission/{submission_id}/grade`). It doesn't delay the response. `PUT` doesn't trigger it again.
 - Saving is all-or-nothing: if anything fails validation, nothing is saved.
 - `400 Bad Request`, code `VALIDATION_ERROR`, if the body is invalid (e.g. a value outside 0–2), or `rule_evaluations` doesn't contain every rule of the submission exactly once. In the second case, `data` lists the problem rule ids:
 ```json
@@ -1021,6 +1067,11 @@ Content-Disposition: attachment; filename="assignment-201-submissions.zip"
 ```
 
 ## /rule-groups
+- When a rule group is saved, an LLM call in the background turns each new or changed rule's `user_description` into two generated texts. The call covers the whole group, so rules don't overlap. Rules whose description didn't change keep their existing texts.
+  - **Grading criteria**, used only by the AI grader and not returned by the API: up to 4 yes/no checks, plus a line defining grades 2, 1 and 0.
+  - **`generated_description`**: the instructor's description restated for display. It keeps the meaning and is only made more precise where needed. It's returned on rules in `/rule-groups`, `/courses`, `/assignments/{assignment_id}/rules` and the evaluation page, and is `null` until generated.
+- Both are written in the language of the rule's description.
+- If generation fails or hasn't finished when a paper is graded, grading generates them first. If that also fails, the AI grades from the instructor's description directly.
 ### Brief Summary
 | Method | Path                      | Description                                   | FE Usage                                 |
 |--------|---------------------------|-----------------------------------------------|----------------------------------------------|
@@ -1110,6 +1161,7 @@ Content-Disposition: attachment; filename="assignment-201-submissions.zip"
         "id": 1,
         "name": "Semantic Elements",
         "user_description": "Use semantic tags like main.",
+        "generated_description": "Use semantic HTML tags such as main.",
         "include_in_prompt": true
       }
     ],

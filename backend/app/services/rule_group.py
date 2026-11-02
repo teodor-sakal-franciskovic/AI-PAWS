@@ -1,8 +1,11 @@
 from sqlalchemy.orm import Session
 
 from ..exceptions import ApiError
+from ..llm.prompt import call_llm_with_checks, generate_rule_compilation_user_prompt
+from ..llm.schema import LLMRuleGroupCompilation
 from ..models.course import Course
 from ..models.rule_group import RuleGroup
+from ..repository.prompt_template import retrieve_by_purpose
 from ..repository.rule_group import (
     create_rule_group as create_rule_group_repo,
 )
@@ -12,6 +15,7 @@ from ..repository.rule_group import (
     retrieve_all_for_instructor,
     retrieve_by_id,
     retrieve_courses_for_rule_group,
+    retrieve_name,
     retrieve_rules_for_rule_group,
     retrieve_user_by_id,
     soft_delete,
@@ -101,6 +105,52 @@ def update_rule_group(
             "A rule group with this name already exists.",
         )
     return update_rule_group_repo(db, rule_group, data.name, data.rules, user_id)
+
+
+def _compiled_ids_problem(response, expected_rule_ids: list[int]) -> str | None:
+    returned = sorted(rule.rule_id for rule in response.rules)
+    if returned != expected_rule_ids:
+        return f"Expected rule ids {expected_rule_ids}, got {returned}"
+    return None
+
+
+def _render_criteria(compiled_rule) -> str:
+    checks = "\n".join(f"- {check}" for check in compiled_rule.checks)
+    return (
+        f"Checks:\n{checks}\n"
+        f"Grade 2: {compiled_rule.grade_2}\n"
+        f"Grade 1: {compiled_rule.grade_1}\n"
+        f"Grade 0: {compiled_rule.grade_0}"
+    )
+
+
+def compile_rule_group(db: Session, rule_group_id: int, llm) -> None:
+    rules = retrieve_rules_for_rule_group(db, rule_group_id)
+    to_process = [
+        rule for rule in rules if not rule.prompt_description or not rule.generated_description
+    ]
+    if not to_process:
+        return
+    other_rules = [rule for rule in rules if rule not in to_process]
+    expected_rule_ids = sorted(rule.id for rule in to_process)
+
+    template = retrieve_by_purpose(db, "Rule Compilation")
+    response = call_llm_with_checks(
+        llm,
+        LLMRuleGroupCompilation,
+        template.system_text,
+        generate_rule_compilation_user_prompt(
+            template, retrieve_name(db, rule_group_id), to_process, other_rules
+        ),
+        lambda r: _compiled_ids_problem(r, expected_rule_ids),
+    )
+
+    rules_by_id = {rule.id: rule for rule in to_process}
+    for compiled_rule in response.rules:
+        rule = rules_by_id[compiled_rule.rule_id]
+        rule.prompt_description = _render_criteria(compiled_rule)
+        rule.generated_description = compiled_rule.generated_description
+    db.commit()
 
 
 def delete_rule_group(db: Session, rule_group_id: int) -> None:

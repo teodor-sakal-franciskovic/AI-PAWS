@@ -114,6 +114,16 @@ def retrieve_by_id(db: Session, course_id: int) -> Course:
     )
 
 
+def retrieve_feedback_language_name(db: Session, course_id: int) -> str | None:
+    row = (
+        db.query(Language.name)
+        .join(Course, Course.feedback_language_id == Language.id)
+        .filter(Course.id == course_id)
+        .first()
+    )
+    return row[0] if row else None
+
+
 def instructor_has_access(db: Session, course: Course, user_id: int) -> bool:
     if course.created_by == user_id:
         return True
@@ -357,7 +367,11 @@ def retrieve_course_detail(db: Session, course_id: int) -> dict | None:
 
         rule_groups = []
         for arg in arg_rows:
-            rg = db.query(RuleGroup).filter(RuleGroup.id == arg.rule_group_id).first()
+            rg = (
+                db.query(RuleGroup)
+                .filter(RuleGroup.id == arg.rule_group_id, RuleGroup.is_active.is_(True))
+                .first()
+            )
             if not rg:
                 continue
             rules = db.query(Rule).filter(Rule.rule_group_id == rg.id).all()
@@ -371,6 +385,7 @@ def retrieve_course_detail(db: Session, course_id: int) -> dict | None:
                             "id": r.id,
                             "name": r.name,
                             "user_description": r.user_description,
+                            "generated_description": r.generated_description,
                             "include_in_prompt": r.include_in_prompt,
                         }
                         for r in rules

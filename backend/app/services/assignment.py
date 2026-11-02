@@ -11,19 +11,21 @@ from ..models.course_group import CourseGroup
 from ..models.submission import Submission
 from ..models.user import User
 from ..repository.assignment import (
-    retrieve_active_assignments_for_group,
+    retrieve_active_assignments_with_submissions,
     retrieve_all,
+    retrieve_assignment_rules,
     retrieve_course_assignments,
     retrieve_latest_submission_files,
-    retrieve_past_submissions_with_assignments_for_user,
+    retrieve_past_assignments_with_submissions,
     retrieve_rule_group_summaries,
     retrieve_submitted_counts,
 )
 from ..repository.assignment import (
     retrieve_by_id as retrieve_assignment_by_id,
 )
-from ..repository.chapter import retrieve_by_id as retrieve_chapter_by_id
-from ..repository.group import retrieve_group_ids_for_student
+from ..repository.course import instructor_has_access
+from ..repository.course import retrieve_by_id as retrieve_course_by_id
+from ..repository.group import retrieve_student_ids_in_course_groups
 from ..repository.submission import retrieve_rule_feedbacks_for_submission
 from ..repository.submission_mode import (
     retrieve_by_id as retrieve_submission_mode_by_id,
@@ -41,17 +43,24 @@ from .course import require_course_access
 def _build_submission_response(db: Session, submission: Submission):
     if not submission:
         return {}
-    rule_feedbacks = retrieve_rule_feedbacks_for_submission(db, submission.id)
+    submission_mode = retrieve_submission_mode_by_id(
+        db, submission.submission_mode_id
+    ).name
+    awaiting_instructor = submission_mode == "Evaluative mode" and not submission.graded
     return SubmissionResponse(
         id=submission.id,
         text=submission.text,
-        achieved_points_percentage=submission.achieved_points_percentage,
-        submission_mode=retrieve_submission_mode_by_id(
-            db, submission.submission_mode_id
-        ).name,
+        achieved_points_percentage=(
+            None if awaiting_instructor else submission.achieved_points_percentage
+        ),
+        submission_mode=submission_mode,
         submitted_at=submission.submitted_at,
         status=submission.status,
-        rule_feedbacks=rule_feedbacks,
+        rule_feedbacks=(
+            []
+            if awaiting_instructor
+            else retrieve_rule_feedbacks_for_submission(db, submission.id)
+        ),
         file_bytes=submission.file_bytes,
     )
 
@@ -69,8 +78,6 @@ def _build_assignment_responses(db: Session, submissions_with_assignments):
                 submission_mode=retrieve_submission_mode_by_id(
                     db, assignment.submission_mode_id
                 ).name,
-                chapter_id=assignment.chapter_id,
-                chapter_name=retrieve_chapter_by_id(db, assignment.chapter_id).name,
             )
         )
     return responses
@@ -103,9 +110,8 @@ def retrieve_assignments(db: Session):
 
 def retrieve_active_assignments_for_student(db: Session, user: User):
     logger.info(f"Retrieving active assignments for user {user.id}")
-    group_ids = retrieve_group_ids_for_student(db, user.id)
-    submissions_with_assignments = retrieve_active_assignments_for_group(
-        db, group_ids, user.id
+    submissions_with_assignments = retrieve_active_assignments_with_submissions(
+        db, user.id
     )
     responses = _build_assignment_responses(db, submissions_with_assignments)
     logger.info("Successfully retrieved active assignments")
@@ -114,13 +120,62 @@ def retrieve_active_assignments_for_student(db: Session, user: User):
 
 def retrieve_previous_assignments_for_student(db: Session, user: User):
     logger.info(f"Retrieving finished assignments for the user {user.id}")
-    group_ids = retrieve_group_ids_for_student(db, user.id)
-    submissions_with_assignments = retrieve_past_submissions_with_assignments_for_user(
-        db, group_ids, user.id
+    submissions_with_assignments = retrieve_past_assignments_with_submissions(
+        db, user.id
     )
     responses = _build_assignment_responses(db, submissions_with_assignments)
     logger.info("Successfully retrieved finished assignments")
     return responses
+
+
+def get_assignment_rules(
+    db: Session, assignment_id: int, user_id: int, role_name: str
+) -> dict:
+    assignment = retrieve_assignment_by_id(db, assignment_id)
+    course = retrieve_course_by_id(db, assignment.course_id) if assignment else None
+    if not course:
+        raise ApiError(404, "ASSIGNMENT_NOT_FOUND", "Assignment not found.")
+    has_access = (
+        retrieve_student_ids_in_course_groups(db, course.id, [user_id])
+        if role_name == "Student"
+        else instructor_has_access(db, course, user_id)
+    )
+    if not has_access:
+        raise ApiError(
+            403, "ASSIGNMENT_ACCESS_DENIED", "You don't have access to this assignment."
+        )
+
+    rule_groups: dict[int, dict] = {}
+    for row in retrieve_assignment_rules(db, assignment_id):
+        rule_group = rule_groups.setdefault(
+            row.rule_group_id,
+            {
+                "id": row.rule_group_id,
+                "name": row.rule_group_name,
+                "percentage_of_points_in_assignment": row.percentage_of_points_in_assignment,
+                "rules": [],
+            },
+        )
+        rule_group["rules"].append(
+            {
+                "id": row.rule_id,
+                "name": row.rule_name,
+                "user_description": row.user_description,
+                "generated_description": row.generated_description,
+                "include_in_prompt": row.include_in_prompt,
+            }
+        )
+
+    return {
+        "course": {"id": course.id, "name": course.name},
+        "assignment": {
+            "id": assignment.id,
+            "name": assignment.name,
+            "start_date": assignment.start_date,
+            "end_date": assignment.end_date,
+        },
+        "rule_groups": list(rule_groups.values()),
+    }
 
 
 def get_submission_overview(db: Session, course_id: int, instructor_id: int) -> dict:

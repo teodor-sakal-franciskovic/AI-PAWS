@@ -9,7 +9,8 @@ from ..services.feedback import (
     request_evaluation,
     create_feedback_objects_for_evaluative_mode,
 )
-from ..llm.schema import LLMFeedbackResponse, LLMEvaluationResponse
+from ..services.rule_group import compile_rule_group
+from ..llm.schema import LLMFeedbackResponse
 from ..repository.assignment import retrieve_by_id as retrieve_assignment_by_id
 from ..repository.rule import retrieve_rules_for_assignment
 from ..utils.logger import logger
@@ -68,9 +69,20 @@ def retrieve_llm_grading(submission_id: int, llm):
         db.close()
         return
     try:
-        user = db.get(User, submission.user_id)
         assignment = retrieve_assignment_by_id(db, submission.assignment_id)
         rules = retrieve_rules_for_assignment(db, assignment.id)
+        uncompiled_groups = {rule.rule_group_id for rule in rules if rule.needs_compiling}
+        for rule_group_id in uncompiled_groups:
+            try:
+                compile_rule_group(db, rule_group_id, llm)
+            except Exception as e:
+                logger.warning(
+                    f"[BACKGROUND] Couldn't compile rule group {rule_group_id}, grading from the instructor's text: {e}"
+                )
+                db.rollback()
+        if uncompiled_groups:
+            rules = retrieve_rules_for_assignment(db, assignment.id)
+
         prompt_rules = [rule for rule in rules if rule.include_in_prompt]
         logger.info(
             f"[BACKGROUND] Submission {submission_id}: {len(rules)} rules, {len(prompt_rules)} graded by the LLM"
@@ -79,10 +91,9 @@ def retrieve_llm_grading(submission_id: int, llm):
         llm_rule_evaluations = []
         if prompt_rules:
             logger.info("[BACKGROUND] Requesting LLM evaluation...")
-            llm_evaluation_response: LLMEvaluationResponse = request_evaluation(
-                db, llm, submission, user, prompt_rules, assignment.name
+            llm_rule_evaluations = request_evaluation(
+                db, llm, submission, prompt_rules, assignment
             )
-            llm_rule_evaluations = llm_evaluation_response.evaluation
 
         logger.info("[BACKGROUND] Creating feedback objects...")
         create_feedback_objects_for_evaluative_mode(

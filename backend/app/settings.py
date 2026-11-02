@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     google_service_account_file: Optional[str] = None
     google_drive_folder_id: Optional[str] = None
 
-    # OpenAI configuration
-    openai_api_key: str = None
+    # Anthropic configuration
+    anthropic_api_key: str = None
     llm_name: str = None
 
     def __init__(self, **kwargs):
@@ -63,12 +63,13 @@ class Settings(BaseSettings):
         self.google_service_account_file = aws_secrets.get_config_value("google_service_account_file", secret_type="google") or os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "")
         self.google_drive_folder_id = aws_secrets.get_config_value("google_drive_folder_id", secret_type="google") or os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
 
-        # OpenAI configuration
-        self.openai_api_key = aws_secrets.get_config_value("openai_api_key", secret_type="openai") or os.getenv("OPENAI_API_KEY")
-        self.llm_name = aws_secrets.get_config_value("llm_name", secret_type="openai") or os.getenv("LLM_NAME", "gpt-4o")
+        # Anthropic configuration
+        self.anthropic_api_key = aws_secrets.get_config_value("anthropic_api_key", secret_type="anthropic") or os.getenv("ANTHROPIC_API_KEY")
+        self.llm_name = aws_secrets.get_config_value("llm_name", secret_type="anthropic") or os.getenv("LLM_NAME", "claude-opus-5-5")
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 
 settings = Settings()

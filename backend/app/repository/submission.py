@@ -47,6 +47,7 @@ def retrieve_rule_evaluations(db: Session, submission_id: int):
             Rule.id.label("rule_id"),
             Rule.name.label("rule_name"),
             Rule.user_description.label("rule_description"),
+            Rule.generated_description.label("rule_generated_description"),
             Rule.rule_group_id,
             RuleGroup.name.label("rule_group_name"),
             Feedback.id.label("feedback_id"),
@@ -190,7 +191,7 @@ def retrieve_rule_feedbacks_for_submission(
             Feedback.is_valid,
             Feedback.initially_fulfilled,
             Rule.name.label("rule_name"),
-            Rule.description.label("rule_description"),
+            Rule.user_description.label("rule_description"),
             case(
                 (
                     Feedback.final_feedback_text.isnot(None),

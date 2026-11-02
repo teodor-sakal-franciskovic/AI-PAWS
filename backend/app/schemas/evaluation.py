@@ -85,6 +85,7 @@ class EvaluationRuleResponse(BaseModel):
     position: int
     name: str
     description: str | None = None
+    generated_description: str | None = None
     evaluation: RuleEvaluationDetailResponse
 
 

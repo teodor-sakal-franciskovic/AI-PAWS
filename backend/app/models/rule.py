@@ -14,3 +14,4 @@ class Rule(AcademicWritingSchema):
     )
     rule_group_id = Column("rule_group_id", Integer, ForeignKey("rule_group.id"))
     prompt_description = Column("prompt_description", String)
+    generated_description = Column("generated_description", String)

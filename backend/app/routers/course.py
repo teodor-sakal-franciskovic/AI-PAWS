@@ -1,12 +1,11 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 
 from ..dependencies.auth import get_current_active_user, require_role
 from ..dependencies.db import get_db
-from ..dependencies.llm import initialise_llm
 from ..exceptions import ApiError
 from ..models.role import Role
 from ..models.user import User
@@ -39,7 +38,6 @@ from ..services.group import (
 )
 from ..services.evaluation import get_submission_evaluation, save_final_evaluation
 from ..services.submission import get_evaluative_submissions_for_my_students
-from ..tasks.evaluation import update_student_knowledge_after_grading
 
 router = APIRouter(
     prefix="/courses",
@@ -249,16 +247,13 @@ def create_final_evaluation_endpoint(
     course_id: int,
     submission_id: int,
     data: FinalEvaluationRequest,
-    background_tasks: BackgroundTasks,
     role: Annotated[Role, Depends(require_role("Instructor"))],
     current_user: Annotated[User, Depends(get_current_active_user)],
-    llm=Depends(initialise_llm),
     db: Session = Depends(get_db),
 ):
     evaluation = save_final_evaluation(
         db, course_id, submission_id, current_user.id, data.rule_evaluations, is_update=False
     )
-    background_tasks.add_task(update_student_knowledge_after_grading, submission_id, llm)
     return JSONResponse(
         status_code=201,
         content=GenericResponse(

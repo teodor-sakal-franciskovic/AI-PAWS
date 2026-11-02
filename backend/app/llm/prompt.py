@@ -1,27 +1,21 @@
-from fastapi import HTTPException
-from langchain.output_parsers import PydanticOutputParser
-from langchain.prompts import ChatPromptTemplate
 from typing import Any, Dict
+
+from pydantic import ValidationError
 
 from ..models.historical_profile import HistoricalProfile
 from ..models.prompt_template import PromptTemplate
 from ..models.submission import Submission
+from ..settings import settings
+from ..utils.logger import logger
 
-from .schema import (
-    LLMFeedbackResponse,
-    LLMAdditionalFeedbackResponse,
-    LLMEvaluationResponse,
-    LLMUpdatedKnowledge,
-    LLMInitialKnowledgeResponse,
-)
+LLM_MAX_TOKENS = 16000
+LLM_EFFORT = "medium"
+LLM_FALLBACK_BETA = "server-side-fallback-2026-07-01"
+MAX_LLM_ATTEMPTS = 3
 
-_LLM_SCHEMA_MAP = {
-    "LLMFeedbackResponse": LLMFeedbackResponse,
-    "LLMAdditionalFeedbackResponse": LLMAdditionalFeedbackResponse,
-    "LLMEvaluationResponse": LLMEvaluationResponse,
-    "LLMUpdatedKnowledge": LLMUpdatedKnowledge,
-    "LLMInitialKnowledgeResponse": LLMInitialKnowledgeResponse,
-}
+
+class LLMRefusalError(Exception):
+    pass
 
 
 def generate_system_prompt(
@@ -65,28 +59,53 @@ def generate_user_prompt_for_initial_interactive_and_evaluative_mode(
 
 def generate_evaluative_user_prompt(
     prompt_template: PromptTemplate,
-    rules: list,
-    submission_text: str,
     assignment_name: str,
+    paper_text: str,
+    rules: list,
+    all_rules: list,
 ):
-    user_prompt = prompt_template.user_text
-    for rule in rules:
-        user_prompt += f"ID pravila: {rule.rule_id}\n{rule.rule_name}\n{rule.rule_description}\n\n"
-    user_prompt += f"Evaluiraj SAMO deo teksta koji se odnosi na zadatak {assignment_name}. Ostatak teksta koristi kao dodatni kontekst.\n"
-    user_prompt += "Tekst:\n"
-    user_prompt += submission_text
-    return user_prompt
+    rule_group_criteria = "\n".join(
+        f'<rule id="{rule.rule_id}" name="{rule.rule_name}">\n{rule.rule_description}\n</rule>'
+        for rule in rules
+    )
+    shared_text, closing_text = prompt_template.user_text.split("{rule_group_criteria}")
+    return [
+        {
+            "type": "text",
+            "text": shared_text.format(
+                assignment_name=assignment_name,
+                paper_text=paper_text.replace("</paper>", ""),
+                all_rules="\n".join(
+                    f"- {rule.rule_name}: {rule.user_description or ''}"
+                    for rule in all_rules
+                ),
+            ),
+            "cache_control": {"type": "ephemeral"},
+        },
+        {"type": "text", "text": rule_group_criteria + closing_text},
+    ]
 
 
-def construct_evaluative_conclusion_object(
-    rule_evaluations: list[tuple[str, str | None, int, str | None]],
+def generate_rule_compilation_user_prompt(
+    prompt_template: PromptTemplate,
+    rule_group_name: str,
+    rules_to_process: list,
+    other_rules: list,
 ):
-    evaluative_conclusion_object = ""
-    for rule_name, rule_description, grade, feedback in rule_evaluations:
-        current_object = f"Naziv pravila: {rule_name}\n\n Opis pravila: {rule_description}\n\n Ocena: {grade}\n\n Obrazloženje ocene: {feedback}\n\n"
-        evaluative_conclusion_object += current_object
+    def render(rules: list) -> str:
+        return (
+            "\n".join(
+                f"- id {rule.id}, {rule.name}: {rule.user_description or ''}"
+                for rule in rules
+            )
+            or "None"
+        )
 
-    return evaluative_conclusion_object
+    return prompt_template.user_text.format(
+        rule_group_name=rule_group_name,
+        rules_to_process=render(rules_to_process),
+        other_rules=render(other_rules),
+    )
 
 
 def generate_additional_interactive_user_prompt(
@@ -103,55 +122,53 @@ def generate_additional_interactive_user_prompt(
     return user_prompt
 
 
-def generate_evaluative_summarised_knowledge_user_prompt(
-    user_prompt_template: str,
-    evaluative_conclusion: str,
-    latest_historical_profile_summary: str,
-):
-    user_prompt = user_prompt_template.format(
-        summarised_knowledge=latest_historical_profile_summary,
-        evaluative_conclusion=evaluative_conclusion,
+def call_llm(llm, response_schema, system_prompt, user_prompt):
+    with llm.beta.messages.stream(
+        model=settings.llm_name,
+        max_tokens=LLM_MAX_TOKENS,
+        betas=[LLM_FALLBACK_BETA],
+        fallbacks="default",
+        output_config={"effort": LLM_EFFORT},
+        output_format=response_schema,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_prompt}],
+    ) as stream:
+        message = stream.get_final_message()
+    usage = message.usage
+    logger.info(
+        f"LLM usage: {usage.input_tokens} uncached input tokens, "
+        f"{usage.cache_creation_input_tokens} written to cache, "
+        f"{usage.cache_read_input_tokens} read from cache, "
+        f"{usage.output_tokens} output tokens"
     )
-    return user_prompt
+    if any(block.type == "fallback" for block in message.content):
+        logger.warning(f"The LLM request was answered by a fallback model: {message.model}")
+    if message.stop_reason == "refusal":
+        raise LLMRefusalError(f"The LLM declined the request: {message.stop_details}")
+    if message.parsed_output is None:
+        raise ValueError(f"The LLM returned no output, stop reason: {message.stop_reason}")
+    return message.parsed_output
 
 
-def initialise_format_instructions(pydantic_object_name: str):
-    parser = PydanticOutputParser(
-        pydantic_object=_initialise_llm_response_schema(pydantic_object_name)
+def call_llm_with_checks(llm, response_schema, system_prompt, user_prompt, required_check):
+    problem = None
+    for attempt in range(1, MAX_LLM_ATTEMPTS + 1):
+        try:
+            response = call_llm(llm, response_schema, system_prompt, user_prompt)
+        except LLMRefusalError:
+            raise
+        except Exception as e:
+            problem = (
+                e.errors(include_url=False, include_input=False)
+                if isinstance(e, ValidationError)
+                else str(e)
+            )
+            logger.warning(f"LLM attempt {attempt} failed: {problem}")
+            continue
+        problem = required_check(response)
+        if not problem:
+            return response
+        logger.warning(f"LLM attempt {attempt} rejected: {problem}")
+    raise RuntimeError(
+        f"LLM response still invalid after {MAX_LLM_ATTEMPTS} attempts: {problem}"
     )
-    format_instructions = (
-        parser.get_format_instructions().replace("{", "{{").replace("}", "}}")
-    )
-    return parser, format_instructions
-
-
-def generate_whole_prompt(format_instructions):
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", "{system_prompt}"),
-            (
-                "user",
-                "{user_prompt}\n\n"
-                "Vrati podatke u sledećem JSON formatu:\n" + format_instructions,
-            ),
-        ]
-    )
-    return prompt
-
-
-def call_llm(prompt, llm, parser, system_prompt, user_prompt):
-    chain = prompt | llm | parser
-    response = chain.invoke(
-        {"system_prompt": system_prompt, "user_prompt": user_prompt}
-    )
-    return response
-
-
-def _initialise_llm_response_schema(pydantic_object_name: str):
-    schema = _LLM_SCHEMA_MAP.get(pydantic_object_name)
-    if not schema:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Can't initialise LLM response schema, unknown pydantic object name: {pydantic_object_name}",
-        )
-    return schema
