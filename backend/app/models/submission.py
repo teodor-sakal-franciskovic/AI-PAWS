@@ -30,7 +30,7 @@ class Submission(AcademicWritingSchema):
         "submitted_at", TIMESTAMP, nullable=False, server_default=func.now()
     )
     text = Column("text", String)
-    achieved_points_percentage = Column("achieved_points_percentage", Float)
+    fulfillment_ratio = Column("fulfillment_ratio", Float)
     user_id = Column("user_id", Integer, ForeignKey("user.id"))
     submission_mode_id = Column("mode_id", Integer)
     graded = Column("graded", Boolean, server_default=sqlalchemy_text("false"))

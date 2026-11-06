@@ -18,6 +18,7 @@ from ..repository.course import (
 )
 from ..repository.group import retrieve_group_ids_for_student
 from ..schemas.course import CourseCreate, CourseUpdate
+from .points import refresh_course_points
 
 
 def require_course_access(db: Session, course_id: int, instructor_id: int) -> Course:
@@ -51,6 +52,7 @@ def update_course(
             409, "COURSE_NAME_ALREADY_EXISTS", "A course with this name already exists."
         )
     update_course_repo(db, course, data, user_id)
+    refresh_course_points(db, course_id)
 
 
 def get_courses_for_instructor(db: Session, user_id: int) -> list[dict]:

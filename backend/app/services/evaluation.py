@@ -19,10 +19,18 @@ from ..repository.submission_mode import (
     retrieve_by_name as retrieve_submission_mode_by_name,
 )
 from ..repository.user import retrieve_by_id as retrieve_user_by_id
+from ..repository.submission_points import retrieve_by_submission_id as retrieve_points
 from ..schemas.evaluation import RuleEvaluationRequest
-from .submission import assignment_max_points
+from .points import (
+    ai_suggested_ratio,
+    assignment_max_points,
+    group_shares,
+    latest_rule_evaluations,
+    points_for,
+    refresh_submission_points,
+    rule_ratio,
+)
 
-MAX_RULE_GRADE = 2
 PDF_MIME_TYPE = "application/pdf"
 FULFILLMENT_SCALE = [
     {"value": 0, "code": "NOT_FULFILLED"},
@@ -31,56 +39,13 @@ FULFILLMENT_SCALE = [
 ]
 
 
-def _ratio(values: list[int]) -> float:
-    return sum(values) / (MAX_RULE_GRADE * len(values))
-
-
-def _group_shares(
-    group_ids: list[int | None], percentages: dict[int, float | None]
-) -> dict[int | None, float]:
-    weights = {group: percentages.get(group) for group in group_ids}
-    if not weights:
-        return {}
-    if any(weight is None for weight in weights.values()) or sum(weights.values()) <= 0:
-        weights = {group: 1.0 for group in group_ids}
-    total_weight = sum(weights.values())
-    return {group: weight / total_weight for group, weight in weights.items()}
-
-
-def calculate_weighted_score(
-    values: list[tuple[int | None, int]],
-    percentages: dict[int, float | None],
-) -> float:
-    values_by_group: dict[int | None, list[int]] = {}
-    for rule_group_id, value in values:
-        values_by_group.setdefault(rule_group_id, []).append(value)
-    shares = _group_shares(list(values_by_group), percentages)
-    return sum(
-        shares[group] * _ratio(group_values)
-        for group, group_values in values_by_group.items()
-    )
-
-
-def _points(ratio: float | None, max_points: float | None) -> float | None:
-    if ratio is None or max_points is None:
-        return None
-    return round(ratio * max_points, 2)
-
-
-def _result(ratio: float | None, max_points: float | None) -> dict | None:
+def _result(ratio: float | None, achieved_points: float | None) -> dict | None:
     if ratio is None:
         return None
     return {
         "fulfillment_ratio": round(ratio, 4),
-        "achieved_points": _points(ratio, max_points),
+        "achieved_points": achieved_points,
     }
-
-
-def latest_rule_evaluations(rows) -> list:
-    latest_by_rule = {}
-    for row in rows:
-        latest_by_rule[row.rule_id] = row
-    return list(latest_by_rule.values())
 
 
 def _access_denied() -> ApiError:
@@ -118,19 +83,16 @@ def _file_name(file_name: str | None, student_index: str | None, assignment_name
     return f"{student_index}-{slug}.pdf" if student_index else f"{slug}.pdf"
 
 
-def _evaluation(db: Session, submission, rules: list, percentages, max_points) -> dict:
-    ai_values = [
-        (rule.rule_group_id, rule.initial_fulfillment_value)
-        for rule in rules
-        if rule.initial_fulfillment_value is not None
-    ]
-    ai_ratio = calculate_weighted_score(ai_values, percentages) if ai_values else None
-    final_ratio = submission.achieved_points_percentage if submission.graded else None
+def _evaluation(db: Session, submission, rules: list, percentages, points) -> dict:
+    ai_ratio = ai_suggested_ratio(rules, percentages)
+    final_ratio = submission.fulfillment_ratio if submission.graded else None
     grader = retrieve_user_by_id(db, submission.graded_by) if submission.graded_by else None
     return {
         "grading_status": "GRADED" if submission.graded else "NOT_GRADED",
-        "ai_suggested_result": _result(ai_ratio, max_points),
-        "final_result": _result(final_ratio, max_points),
+        "ai_suggested_result": _result(
+            ai_ratio, points.ai_suggested_points if points else None
+        ),
+        "final_result": _result(final_ratio, points.final_points if points else None),
         "graded_at": submission.graded_at,
         "graded_by": {
             "instructor_id": grader.id,
@@ -148,7 +110,7 @@ def _rule_groups(rules: list, percentages, max_points) -> list[dict]:
         groups.setdefault(
             rule.rule_group_id, {"name": rule.rule_group_name, "rules": []}
         )["rules"].append(rule)
-    shares = _group_shares(list(groups), percentages)
+    shares = group_shares(list(groups), percentages)
 
     result = []
     for position, (group_id, group) in enumerate(groups.items(), start=1):
@@ -165,10 +127,10 @@ def _rule_groups(rules: list, percentages, max_points) -> list[dict]:
                     "rules_count": len(group["rules"]),
                     "finalized_rules_count": len(final_values),
                     "max_points": group_max,
-                    "ai_suggested_achieved_points": _points(_ratio(ai_values), group_max)
+                    "ai_suggested_achieved_points": points_for(rule_ratio(ai_values), group_max)
                     if ai_values
                     else None,
-                    "final_achieved_points": _points(_ratio(final_values), group_max)
+                    "final_achieved_points": points_for(rule_ratio(final_values), group_max)
                     if final_values
                     else None,
                 },
@@ -206,8 +168,13 @@ def get_submission_evaluation(
         db, course_id, submission_id, instructor_id
     )
     student = retrieve_user_by_id(db, submission.user_id)
-    max_points = assignment_max_points(
-        course.max_amount_of_points, assignment.percentage_of_points_in_course
+    points = retrieve_points(db, submission.id)
+    max_points = (
+        points.max_points
+        if points
+        else assignment_max_points(
+            course.max_amount_of_points, assignment.percentage_of_points_in_course
+        )
     )
     rules = latest_rule_evaluations(retrieve_rule_evaluations(db, submission.id))
     percentages = retrieve_rule_group_percentages(db, assignment.id)
@@ -240,7 +207,7 @@ def get_submission_evaluation(
             if has_file
             else None,
         },
-        "evaluation": _evaluation(db, submission, rules, percentages, max_points),
+        "evaluation": _evaluation(db, submission, rules, percentages, points),
         "fulfillment_scale": FULFILLMENT_SCALE,
         "rule_groups": _rule_groups(rules, percentages, max_points),
         "permissions": {
@@ -315,24 +282,16 @@ def save_final_evaluation(
             evaluation.final_feedback_text,
         )
 
-    percentages = retrieve_rule_group_percentages(db, assignment.id)
-    submission.achieved_points_percentage = calculate_weighted_score(
-        [
-            (rules_by_id[e.rule_id].rule_group_id, e.final_fulfillment_value)
-            for e in rule_evaluations
-        ],
-        percentages,
-    )
     submission.graded = True
     submission.graded_by = instructor_id
     submission.graded_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    points = refresh_submission_points(db, submission)
     db.commit()
     db.refresh(submission)
+    db.refresh(points)
 
-    max_points = assignment_max_points(
-        course.max_amount_of_points, assignment.percentage_of_points_in_course
-    )
-    return _evaluation(db, submission, rules, percentages, max_points)
+    percentages = retrieve_rule_group_percentages(db, assignment.id)
+    return _evaluation(db, submission, rules, percentages, points)
 
 
 def get_submission_file(db: Session, submission_id: int, instructor_id: int):

@@ -21,6 +21,7 @@ from ..repository.submission import (
     retrieve_completed_evaluative_submissions,
     update_status,
 )
+from ..repository.user_course_points import retrieve_course_points
 from ..utils.logger import logger
 
 
@@ -124,26 +125,12 @@ def update_submission_status(
     logger.info("Successfully updated the submission status...")
 
 
-def assignment_max_points(
-    course_max_points: float | None, percentage_of_points_in_course: float | None
-) -> float | None:
-    if course_max_points is None or percentage_of_points_in_course is None:
-        return None
-    return round(course_max_points * percentage_of_points_in_course / 100, 2)
-
-
-def _grading_submission(row, course_max_points: float | None) -> dict:
-    max_points = assignment_max_points(
-        course_max_points, row.percentage_of_points_in_course
-    )
+def _grading_submission(row) -> dict:
     result = None
     if row.graded:
-        ratio = row.achieved_points_percentage or 0.0
         result = {
-            "fulfillment_ratio": round(ratio, 4),
-            "achieved_points": round(ratio * max_points, 2)
-            if max_points is not None
-            else None,
+            "fulfillment_ratio": round(row.fulfillment_ratio or 0.0, 4),
+            "achieved_points": row.final_points,
         }
     return {
         "submission_id": row.submission_id,
@@ -155,36 +142,34 @@ def _grading_submission(row, course_max_points: float | None) -> dict:
             "name": row.assignment_name,
             "start_date": row.assignment_start_date,
             "end_date": row.assignment_end_date,
-            "max_points": max_points,
+            "max_points": row.max_points,
         },
         "result": result,
     }
 
 
-def _grading_summary(submissions: list[dict]) -> dict:
+def _grading_summary(submissions: list[dict], course_points) -> dict:
     graded = [s for s in submissions if s["result"] is not None]
     return {
         "completed_submissions_count": len(submissions),
         "ungraded_submissions_count": len(submissions) - len(graded),
-        "achieved_points": round(
-            sum(s["result"]["achieved_points"] or 0 for s in graded), 2
-        ),
-        "max_points": round(
-            sum(s["assignment"]["max_points"] or 0 for s in submissions), 2
-        ),
+        "achieved_points": course_points.achieved_points if course_points else 0,
+        "max_points": course_points.max_points if course_points else 0,
     }
 
 
 def get_evaluative_submissions_for_my_students(
     db: Session, course_id: int, instructor_id: int
 ) -> dict:
-    course = require_course_access(db, course_id, instructor_id)
+    require_course_access(db, course_id, instructor_id)
 
     students = retrieve_assigned_students_for_instructor(db, course_id, instructor_id)
     evaluative_mode = retrieve_submission_mode_by_name(db, "Evaluative mode")
     rows = retrieve_completed_evaluative_submissions(
         db, course_id, [s.id for s in students], evaluative_mode.id
     )
+
+    course_points = retrieve_course_points(db, course_id, [s.id for s in students])
 
     latest_by_student_assignment = {}
     for row in rows:
@@ -193,7 +178,7 @@ def get_evaluative_submissions_for_my_students(
     submissions_by_student: dict[int, list[dict]] = {}
     for row in latest_by_student_assignment.values():
         submissions_by_student.setdefault(row.user_id, []).append(
-            _grading_submission(row, course.max_amount_of_points)
+            _grading_submission(row)
         )
 
     students_with_submissions = []
@@ -205,7 +190,7 @@ def get_evaluative_submissions_for_my_students(
                 "student_index": student.index,
                 "name": student.name,
                 "surname": student.surname,
-                "summary": _grading_summary(submissions),
+                "summary": _grading_summary(submissions, course_points.get(student.id)),
                 "submissions": submissions,
             }
         )

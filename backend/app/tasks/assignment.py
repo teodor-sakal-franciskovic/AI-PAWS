@@ -9,6 +9,7 @@ from ..services.feedback import (
     request_evaluation,
     create_feedback_objects_for_evaluative_mode,
 )
+from ..services.points import refresh_submission_points
 from ..services.rule_group import compile_rule_group
 from ..llm.schema import LLMFeedbackResponse
 from ..repository.assignment import retrieve_by_id as retrieve_assignment_by_id
@@ -103,6 +104,7 @@ def retrieve_llm_grading(submission_id: int, llm):
         logger.info("[BACKGROUND] Updating submission status to COMPLETED...")
         update_submission_status(db, submission, SubmissionStatus.COMPLETED)
         logger.info("[BACKGROUND] Successfully updated submission status to COMPLETED")
+        refresh_submission_points(db, submission)
         db.commit()
     except Exception as e:
         logger.info(f"[BACKGROUND] An error occurred: {e}")

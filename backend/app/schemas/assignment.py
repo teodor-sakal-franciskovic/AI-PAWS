@@ -1,3 +1,4 @@
+import enum
 from datetime import datetime
 from typing import Any
 
@@ -91,10 +92,29 @@ class AssignmentRulesResponse(BaseModel):
     rule_groups: list[RuleGroupResponse] = []
 
 
+class StudentAssignmentStatus(str, enum.Enum):
+    NOT_SUBMITTED = "NOT_SUBMITTED"
+    PENDING = "PENDING"
+    FAILED = "FAILED"
+    COMPLETED = "COMPLETED"
+    IN_GRADING = "IN_GRADING"
+    NOT_GRADED = "NOT_GRADED"
+    GRADED = "GRADED"
+
+
+class StudentCourseResponse(BaseModel):
+    id: int
+    name: str | None = None
+    achieved_points: float
+    max_points: float
+
+
 class SubmittedSubmissionForAssignmentResponse(BaseModel):
     id: int
     name: str
     start_date: datetime
     end_date: datetime
+    course: StudentCourseResponse
     submission_mode: str
+    status: StudentAssignmentStatus
     submission: Any

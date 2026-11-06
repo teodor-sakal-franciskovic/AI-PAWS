@@ -22,9 +22,10 @@ class SubmissionResponse(BaseModel):
     id: int
     submitted_at: datetime
     text: str | None
-    achieved_points_percentage: Any
+    fulfillment_ratio: Any
+    max_points: float | None = None
+    achieved_points: float | None = None
     submission_mode: str
-    status: Any
     rule_feedbacks: list[RuleFeedbackSchema]
     file_bytes: bytes | None = None
 
@@ -40,7 +41,7 @@ class EvaluativeSubmissionSchema(BaseModel):
     assignment_name: str
     assignment_start_date: datetime
     assignment_end_date: datetime
-    achieved_points_percentage: Any
+    fulfillment_ratio: Any
     rules: list[EvaluativeRuleSchema]
 
 

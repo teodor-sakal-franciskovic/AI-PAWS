@@ -1,6 +1,7 @@
 import re
 import tempfile
 import zipfile
+from datetime import datetime, timezone
 from typing import IO
 
 from sqlalchemy.orm import Session
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..exceptions import ApiError
 from ..models.assignment import Assignment
 from ..models.course_group import CourseGroup
-from ..models.submission import Submission
+from ..models.submission import Submission, SubmissionStatus
 from ..models.user import User
 from ..repository.assignment import (
     retrieve_active_assignments_with_submissions,
@@ -27,11 +28,14 @@ from ..repository.course import instructor_has_access
 from ..repository.course import retrieve_by_id as retrieve_course_by_id
 from ..repository.group import retrieve_student_ids_in_course_groups
 from ..repository.submission import retrieve_rule_feedbacks_for_submission
+from ..repository.submission_points import retrieve_by_submission_id as retrieve_points
+from ..repository.user_course_points import retrieve_course_points
 from ..repository.submission_mode import (
     retrieve_by_id as retrieve_submission_mode_by_id,
 )
 from ..schemas.assignment import (
     AssignmentCreate,
+    StudentAssignmentStatus,
     SubmittedSubmissionForAssignmentResponse,
 )
 from ..schemas.submission import SubmissionResponse
@@ -47,15 +51,17 @@ def _build_submission_response(db: Session, submission: Submission):
         db, submission.submission_mode_id
     ).name
     awaiting_instructor = submission_mode == "Evaluative mode" and not submission.graded
+    points = retrieve_points(db, submission.id)
     return SubmissionResponse(
         id=submission.id,
         text=submission.text,
-        achieved_points_percentage=(
-            None if awaiting_instructor else submission.achieved_points_percentage
+        fulfillment_ratio=(
+            None if awaiting_instructor else submission.fulfillment_ratio
         ),
+        max_points=points.max_points if points else None,
+        achieved_points=points.final_points if points else None,
         submission_mode=submission_mode,
         submitted_at=submission.submitted_at,
-        status=submission.status,
         rule_feedbacks=(
             []
             if awaiting_instructor
@@ -65,19 +71,56 @@ def _build_submission_response(db: Session, submission: Submission):
     )
 
 
-def _build_assignment_responses(db: Session, submissions_with_assignments):
+def _student_status(
+    assignment: Assignment, submission: Submission | None, submission_mode: str
+) -> str:
+    if not submission:
+        return StudentAssignmentStatus.NOT_SUBMITTED.value
+    if submission.status != SubmissionStatus.COMPLETED.value:
+        return submission.status
+    if submission_mode != "Evaluative mode":
+        return StudentAssignmentStatus.COMPLETED.value
+    if submission.graded:
+        return StudentAssignmentStatus.GRADED.value
+    if assignment.end_date < datetime.now(timezone.utc).replace(tzinfo=None):
+        return StudentAssignmentStatus.NOT_GRADED.value
+    return StudentAssignmentStatus.IN_GRADING.value
+
+
+def _student_course(db: Session, course_id: int, student_id: int) -> dict:
+    course = retrieve_course_by_id(db, course_id)
+    points = retrieve_course_points(db, course_id, [student_id]).get(student_id)
+    return {
+        "id": course_id,
+        "name": course.name if course else None,
+        "achieved_points": points.achieved_points if points else 0,
+        "max_points": points.max_points if points else 0,
+    }
+
+
+def _build_assignment_responses(
+    db: Session, submissions_with_assignments, student_id: int
+):
+    courses: dict[int, dict] = {}
     responses = []
     for assignment, submission in submissions_with_assignments:
+        submission_mode = retrieve_submission_mode_by_id(
+            db, assignment.submission_mode_id
+        ).name
+        if assignment.course_id not in courses:
+            courses[assignment.course_id] = _student_course(
+                db, assignment.course_id, student_id
+            )
         responses.append(
             SubmittedSubmissionForAssignmentResponse(
                 id=assignment.id,
                 name=assignment.name,
                 start_date=assignment.start_date,
                 end_date=assignment.end_date,
+                course=courses[assignment.course_id],
+                status=_student_status(assignment, submission, submission_mode),
                 submission=_build_submission_response(db, submission),
-                submission_mode=retrieve_submission_mode_by_id(
-                    db, assignment.submission_mode_id
-                ).name,
+                submission_mode=submission_mode,
             )
         )
     return responses
@@ -113,7 +156,7 @@ def retrieve_active_assignments_for_student(db: Session, user: User):
     submissions_with_assignments = retrieve_active_assignments_with_submissions(
         db, user.id
     )
-    responses = _build_assignment_responses(db, submissions_with_assignments)
+    responses = _build_assignment_responses(db, submissions_with_assignments, user.id)
     logger.info("Successfully retrieved active assignments")
     return responses
 
@@ -123,7 +166,7 @@ def retrieve_previous_assignments_for_student(db: Session, user: User):
     submissions_with_assignments = retrieve_past_assignments_with_submissions(
         db, user.id
     )
-    responses = _build_assignment_responses(db, submissions_with_assignments)
+    responses = _build_assignment_responses(db, submissions_with_assignments, user.id)
     logger.info("Successfully retrieved finished assignments")
     return responses
 

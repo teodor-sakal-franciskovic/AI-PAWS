@@ -76,22 +76,38 @@ multipart/form-data with a single "file" field containing the PDF
 #### `GET /active`
 - Assignments open right now in the courses the student is enrolled in (i.e. they're in a group on that course). Deleted courses are left out.
 - `submission` is the student's latest submission for the assignment, or `{}` if they haven't submitted yet.
-- "status" can be "COMPLETED", "PENDING", "FAILED"
-- For an evaluative submission, `rule_feedbacks` is `[]` and `achieved_points_percentage` is `null` until the instructor has finalised the grades. `rule_feedbacks` then holds the instructor's final grades and explanations. Interactive feedback is returned right away.
+- `status` is the assignment's status for the student, and is always present, even when nothing was submitted. `submission` has no status of its own:
+
+| `status` | Mode | When |
+|---|---|---|
+| `NOT_SUBMITTED` | both | The student hasn't submitted anything (`submission` is `{}`) |
+| `PENDING` | both | The latest submission is still being processed |
+| `FAILED` | both | Processing the latest submission failed |
+| `COMPLETED` | interactive | The latest submission was processed |
+| `IN_GRADING` | evaluative | Processed, not yet graded by the instructor, and the assignment is still open |
+| `NOT_GRADED` | evaluative | Processed, not yet graded by the instructor, and the assignment has ended |
+| `GRADED` | evaluative | The instructor has finalised the grades |
+
+- For an evaluative submission, `rule_feedbacks` is `[]`, and `fulfillment_ratio` (0–1) and `achieved_points` are `null`, until the instructor has finalised the grades. `rule_feedbacks` then holds the instructor's final grades and explanations. Interactive feedback is returned right away.
+- `max_points` and `achieved_points` come from the stored points (see **Stored points** under `GET /courses/{course_id}/submissions/{submission_id}/evaluation`). `max_points` is filled once the AI has graded the submission; both are `null` for interactive submissions.
+- `course` is the assignment's course with the logged-in student's total for it (see **Course totals** under `GET /courses/{course_id}/submissions/{submission_id}/evaluation`). It's the same total the instructor sees in `summary` on `GET /courses/{course_id}/students/mine/submissions/evaluative`, and `0`/`0` if the student has no completed evaluative submission in that course.
 ```json
 [{
   "id": 1,
   "name": "Final Research Essay",
   "start_date": "2025-06-01T09:00:00Z",
   "end_date": "2025-06-15T23:59:00Z",
+  "course": { "id": 10, "name": "Academic Writing", "achieved_points": 26.4, "max_points": 45 },
   "submission_mode": "Evaluative mode",
+  "status": "GRADED",
   "submission": {
     "id": 101,
     "submitted_at": "2025-06-15T18:45:00Z",
     "text": "This is the submitted essay text...",
-    "achieved_points_percentage": 32,
+    "fulfillment_ratio": 0.32,
+    "max_points": 20,
+    "achieved_points": 6.4,
     "submission_mode": "Evaluative mode",
-    "status": "COMPLETED",
     "file_bytes": "base-64-string",
     "rule_feedbacks": [
       {
@@ -130,14 +146,17 @@ multipart/form-data with a single "file" field containing the PDF
   "name": "Final Research Essay",
   "start_date": "2025-06-01T09:00:00Z",
   "end_date": "2025-06-15T23:59:00Z",
+  "course": { "id": 10, "name": "Academic Writing", "achieved_points": 26.4, "max_points": 45 },
   "submission_mode": "Evaluative mode",
+  "status": "GRADED",
   "submission": {
     "id": 101,
     "submitted_at": "2025-06-15T18:45:00Z",
     "text": "This is the submitted essay text...",
-    "achieved_points_percentage": 32,
+    "fulfillment_ratio": 0.32,
+    "max_points": 20,
+    "achieved_points": 6.4,
     "submission_mode": "Evaluative mode",
-    "status": "COMPLETED",
     "file_bytes": "base-64-string",
     "rule_feedbacks": [
       {
@@ -526,7 +545,7 @@ data part is None, only the message gets returned.
           "assignment_name": "Literature Review",
           "assignment_start_date": "2025-07-01T08:00:00",
           "assignment_end_date": "2025-07-15T23:59:00",
-          "achieved_points_percentage": 87.5,
+          "fulfillment_ratio": 0.875,
           "rules": [
             {
               "rule_id": 201,
@@ -909,7 +928,8 @@ Content-Disposition: attachment; filename="assignment-201-submissions.zip"
 - `grading_status` is `GRADED` once the instructor has graded the submission (`POST /{course_id}/submissions/{submission_id}/evaluation/final`), otherwise `NOT_GRADED`. `result` is `null` until it's graded.
 - `assignment.max_points` = the course's `max_amount_of_points` × the assignment's `percentage_of_points_in_course` / 100. It's `null` if either value isn't set.
 - `result.fulfillment_ratio` is the submission's grade (0–1, weighted by rule group — see `GET /{course_id}/submissions/{submission_id}/evaluation` below), and `result.achieved_points` = `fulfillment_ratio` × `max_points`, rounded to 2 decimals.
-- `summary.max_points` adds up `max_points` over all of the student's completed submissions, graded or not; `summary.achieved_points` adds up `achieved_points` over the graded ones only.
+- `assignment.max_points` and `result.achieved_points` are read from the stored points (see **Stored points** under `GET /{course_id}/submissions/{submission_id}/evaluation`).
+- `summary.max_points` adds up `max_points` over all of the student's completed submissions, graded or not; `summary.achieved_points` adds up `achieved_points` over the graded ones only. Both are read from the stored course totals (see **Course totals** under `GET /{course_id}/submissions/{submission_id}/evaluation`), and are `0` for a student with no completed evaluative submissions. The student sees the same numbers in `course` on `GET /assignments/active` and `/previous`.
 - Access: the instructor must have created the course or been added to it as an instructor.
 - `404 Not Found`, code `COURSE_NOT_FOUND`, if the course doesn't exist or was deleted.
 - `403 Forbidden`, code `COURSE_ACCESS_DENIED`, if the logged-in instructor has no access to the course.
@@ -1005,6 +1025,8 @@ Content-Disposition: attachment; filename="assignment-201-submissions.zip"
 - **Grades per rule:** `ai_suggestion` is the AI's grade and explanation. `final` is the instructor's, and is `null` until the submission is graded.
 - **Points:** `assignment.max_points` = the course's `max_amount_of_points` × the assignment's `percentage_of_points_in_course` / 100 (`null` if either isn't set). Each rule group's `summary.max_points` is its share of that, based on `percentage_of_points_in_assignment`.
 - **How the score is computed:** each rule group's score is the sum of its rules' grades divided by 2 × its number of graded rules, and the groups are combined using their `percentage_of_points_in_assignment`. Example: group A (60%) fully met and group B (40%) half met gives 0.6 × 1 + 0.4 × 0.5 = 0.8. If any rule group has no percentage set, all rule groups count equally; percentages that don't add up to 100 are scaled so a fully met submission always gets 1. `ai_suggested_result` applies this to the AI's grades and `final_result` to the instructor's (`null` until graded). `achieved_points` = `fulfillment_ratio` × `max_points`, rounded to 2 decimals.
+- **Stored points:** each evaluative submission's `max_points`, AI-suggested points and final points are calculated on the backend and stored in the `submission_points` table. They're written when the AI finishes grading, updated when the instructor saves or edits the final grades, and recalculated for every completed submission of the course whenever the course is saved (`PUT /courses/{course_id}`), since its `max_amount_of_points`, assignment `percentage_of_points_in_course` or rule group percentages may have changed. A recalculation uses the current settings for both the AI's and the instructor's grades. `assignment.max_points`, `ai_suggested_result.achieved_points` and `final_result.achieved_points` here, the grading list and the student's `GET /assignments/active` and `/previous` all read from this table. Rule group points in `summary` are still calculated on each request.
+- **Course totals:** each student's total for a course is stored in the `user_course_points` table: `max_points` adds up the maximum of the student's latest completed evaluative submission for each assignment, graded or not, and `achieved_points` adds up the final points of the graded ones. It's updated together with the submission points (when the AI finishes, when final grades are saved or edited, and for every student of the course when the course is saved).
 - **`graded_at` / `graded_by`:** the last time the final evaluation was saved, and by whom (`null` for submissions graded before this was tracked).
 - **`submission.file`:** `null` if no file was stored. `name` is the original upload's file name; older submissions get a generated one (`{student_index}-{assignment-name}.pdf`). Download it with `GET /submissions/{submission_id}/file` (needs the login token).
 - **`permissions`:** `can_grade` is `true` for a `COMPLETED`, not yet graded submission (→ `POST .../evaluation/final`); `can_edit_grade` is `true` for a graded one (→ `PUT .../evaluation/final`). Submissions that aren't `COMPLETED` can be viewed but not graded.

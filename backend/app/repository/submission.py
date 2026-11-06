@@ -9,6 +9,7 @@ from ..models.rule import Rule
 from ..models.rule_feedback_submission import RuleFeedbackSubmission
 from ..models.rule_group import RuleGroup
 from ..models.submission import Submission, SubmissionStatus
+from ..models.submission_points import SubmissionPoints
 from ..models.user import User
 from ..schemas.submission import RuleFeedbackSchema
 
@@ -156,14 +157,16 @@ def retrieve_completed_evaluative_submissions(
             Submission.status,
             Submission.submitted_at,
             Submission.graded,
-            Submission.achieved_points_percentage,
+            Submission.fulfillment_ratio,
             Assignment.id.label("assignment_id"),
             Assignment.name.label("assignment_name"),
             Assignment.start_date.label("assignment_start_date"),
             Assignment.end_date.label("assignment_end_date"),
-            Assignment.percentage_of_points_in_course,
+            SubmissionPoints.max_points,
+            SubmissionPoints.final_points,
         )
         .join(Assignment, Assignment.id == Submission.assignment_id)
+        .outerjoin(SubmissionPoints, SubmissionPoints.submission_id == Submission.id)
         .filter(
             Assignment.course_id == course_id,
             Assignment.submission_mode_id == evaluative_mode_id,
@@ -171,6 +174,22 @@ def retrieve_completed_evaluative_submissions(
             Submission.status == SubmissionStatus.COMPLETED.value,
         )
         .order_by(Assignment.start_date, Submission.submitted_at, Submission.id)
+        .all()
+    )
+
+
+def retrieve_completed_submissions_in_course(
+    db: Session, course_id: int, submission_mode_id: int
+) -> list[Submission]:
+    return (
+        db.query(Submission)
+        .options(defer(Submission.file_bytes), defer(Submission.text))
+        .join(Assignment, Assignment.id == Submission.assignment_id)
+        .filter(
+            Assignment.course_id == course_id,
+            Assignment.submission_mode_id == submission_mode_id,
+            Submission.status == SubmissionStatus.COMPLETED.value,
+        )
         .all()
     )
 
